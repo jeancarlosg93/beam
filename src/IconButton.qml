@@ -1,16 +1,18 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Material
 ToolButton {
+    id: control
     property string symbol
     property string label
     icon.source: "qrc:/icons/" + symbol + ".svg"
-    icon.width: 20; icon.height: 20
-    icon.color: enabled ? highlighted ? theme.accent : "#eeeeef" : "#62626c"
-    implicitWidth: 40; implicitHeight: 40
+    icon.width: 16; icon.height: 16
+    icon.color: Qt.alpha(highlighted ? theme.accent : theme.colors.foreground, enabled ? 1 : .35)
+    implicitWidth: 28; implicitHeight: 28
+    padding: 5
     Accessible.name: label
-    ToolTip.visible: hovered
-    ToolTip.text: label
-    ToolTip.delay: 500
-    Material.roundedScale: theme.radius
+    ToolTip.visible: hovered; ToolTip.text: label; ToolTip.delay: 500
+    background: Rectangle {
+        radius: 0; color: Qt.alpha(theme.colors.foreground, control.down ? .18 : control.hovered || control.activeFocus ? .08 : 0)
+        border.width: control.activeFocus ? 1 : 0; border.color: theme.accent
+    }
 }

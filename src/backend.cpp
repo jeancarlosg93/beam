@@ -50,7 +50,7 @@ Backend::Backend(const QString &stateFile, bool headless, QObject *parent)
         for (const QString p : {"pause", "time-pos", "duration", "volume", "mute", "speed"})
             command({"observe_property", ++id, p});
         setVolume(m_volume); setMuted(m_muted); setSpeed(m_speed);
-        if (m_pendingPlay >= 0) { const int i = m_pendingPlay; m_pendingPlay = -1; play(i); }
+        if (m_pendingPlay >= 0) { const int i = m_pendingPlay; m_pendingPlay = -1; play(i, m_pendingPaused); }
         else standby();
         emit changed();
     });
@@ -132,17 +132,18 @@ void Backend::endProjection() {
     }
     m_socket.abort(); m_media = false; emit changed();
 }
-void Backend::play(int i) {
+void Backend::play(int i, bool paused) {
     if (i < 0) i = m_current;
     if (i < 0 || i >= m_paths.size()) return;
     if (!QFileInfo::exists(m_paths[i])) { fail(tr("File is missing: %1. Remove it or add the file again.").arg(m_paths[i])); return; }
-    if (!ready()) { m_pendingPlay = i; project(); return; }
-    m_current = i; m_media = true; m_paused = false; m_position = m_duration = 0;
-    command({"loadfile", m_paths[i], "replace"}); command({"set_property", "pause", false});
+    if (!ready()) { m_pendingPlay = i; m_pendingPaused = paused; project(); return; }
+    m_current = i; m_media = true; m_paused = m_desiredPaused = paused; m_position = m_duration = 0;
+    command({"set_property", "pause", paused});
+    command({"loadfile", m_paths[i], "replace"});
     command({"set_property", "speed", m_speed}); emit changed();
 }
 void Backend::standby() {
-    m_media = false; m_paused = true; m_position = m_duration = 0;
+    m_media = false; m_paused = m_desiredPaused = true; m_position = m_duration = 0;
     command({"stop"});
     if (!m_placeholder.isEmpty()) {
         if (QFileInfo::exists(m_placeholder)) {
@@ -154,7 +155,8 @@ void Backend::standby() {
 void Backend::stop() { m_pendingPlay = -1; standby(); }
 void Backend::togglePause() {
     if (!m_media) { play(); return; }
-    command({"cycle", "pause"});
+    m_desiredPaused = !m_desiredPaused;
+    command({"set_property", "pause", m_desiredPaused});
 }
 void Backend::next() {
     if (m_paths.isEmpty()) return;
@@ -163,7 +165,11 @@ void Backend::next() {
     else stop();
 }
 void Backend::previous() { if (m_current > 0) play(m_current - 1); else if (m_current == 0) play(0); }
-void Backend::seek(double s) { if (m_media) command({"seek", qBound(0., s, m_duration), "absolute+exact"}); }
+void Backend::seek(double s) {
+    if (!m_media) return;
+    const double target=qBound(0.,s,m_duration);
+    command({"seek",target,"absolute+exact"}); emit seeked(target);
+}
 void Backend::setVolume(int v) { m_volume = qBound(0, v, 100); command({"set_property", "volume", m_volume}); save(); emit changed(); }
 void Backend::setMuted(bool v) { m_muted = v; command({"set_property", "mute", v}); emit changed(); }
 void Backend::setSpeed(double v) { m_speed = qBound(.25, v, 3.); command({"set_property", "speed", m_speed}); emit changed(); }
@@ -220,6 +226,9 @@ void Backend::readMessages() {
             if (name == "mute") m_muted = v.toBool();
             if (name == "speed") m_speed = v.toDouble(1);
             emit changed();
+        } else if (event == "file-loaded" && m_media) {
+            // Loading can reset mpv's pause state; honor the latest user intent after initialization.
+            command({"set_property", "pause", m_desiredPaused});
         } else if (event == "end-file" && m_media) {
             const auto reason = o["reason"].toString();
             if (reason == "eof") { if (m_continuous) next(); else standby(); }
@@ -253,4 +262,16 @@ void Backend::portalResponse(uint response, const QVariantMap &results) {
     QList<QUrl> urls; for (const auto &s : uris) urls << QUrl(s);
     if (m_pickerPlaceholder && !urls.isEmpty()) setPlaceholder(urls.first());
     else addFiles(urls);
+}
+
+void Backend::cue(int index) {
+    if (index < 0 || index >= m_paths.size()) return;
+    if (m_media) stop();
+    m_current=index; emit changed();
+}
+
+void Backend::pause() {
+    if (!m_media) return;
+    m_desiredPaused = true;
+    command({"set_property", "pause", true});
 }

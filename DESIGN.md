@@ -1,164 +1,141 @@
 ---
 name: Beam
-description: A restrained Omarchy video projection controller built with Qt Quick.
+description: A compact Omarchy shell-style video projection controller.
 colors:
-  main: "#0e0e10"
-  panel: "#19191c"
-  foreground: "#eeeeef"
-  secondary: "#b6b6bf"
-  divider: "#303036"
-  row-hover: "#25252b"
-  disabled-icon: "#62626c"
-  error-panel: "#402129"
-  error-foreground: "#ffccd5"
+  background-fallback: "#0e0e10"
+  foreground-fallback: "#eeeeef"
+  secondary-fallback: "#b6b6bf"
+  selection-fallback: "#35353c"
+  red-fallback: "#ef667a"
   accent-fallback: "#FFD60A"
 typography:
-  app-title:
-    fontSize: "24px"
-    fontWeight: 600
-  current-title:
-    fontSize: "22px"
-    fontWeight: 600
-  section-title:
-    fontSize: "18px"
-    fontWeight: 600
-  status:
-    fontSize: "12px"
-  path:
-    fontSize: "11px"
-  clock:
+  body:
     fontFamily: "monospace"
+  body-size-fallback:
+    fontSize: "12px"
 rounded:
-  sharp-fallback: "0px"
+  square: "0px"
+  slider-track: "2px"
+  slider-handle: "6px"
 spacing:
   tight: "3px"
   small: "8px"
-  regular: "12px"
-  outer: "24px"
+  outer: "16px"
 components:
-  queue:
-    backgroundColor: "{colors.panel}"
-  queue-hover:
-    backgroundColor: "{colors.row-hover}"
+  button:
+    rounded: "{rounded.square}"
+    height: "28px"
+    padding: "6px 10px"
   icon-button:
-    textColor: "{colors.foreground}"
-    width: "40px"
-    height: "40px"
-  icon-button-disabled:
-    textColor: "{colors.disabled-icon}"
-    width: "40px"
-    height: "40px"
-  error-banner:
-    backgroundColor: "{colors.error-panel}"
-    textColor: "{colors.error-foreground}"
-    padding: "{spacing.small}"
+    rounded: "{rounded.square}"
+    width: "28px"
+    height: "28px"
+    padding: "5px"
+  combo-box:
+    rounded: "{rounded.square}"
+    height: "28px"
+    padding: "0px 28px 0px 10px"
+  checkbox:
+    height: "28px"
+  queue:
+    rounded: "{rounded.square}"
+  queue-row:
+    height: "44px"
+  slider-handle:
+    rounded: "{rounded.slider-handle}"
+    width: "12px"
+    height: "12px"
 ---
 
 # Design System: Beam
 
 ## Overview
 
-**Creative North Star: “The Omarchy projection desk.”** This describes the established Omarchy direction, rather than introducing an independent brand. Beam operates as a quiet native Linux controller: dark Qt Material surfaces, compact controls, a readable queue, and the current desktop accent. Mode: Operate; Omarchy remains the visual authority.
-
-The controller makes output state easy to read while the separate mpv window shows only media or standby. Its signature is a stable projection surface that returns to black or a chosen image on Stop or noncontinuous end of media. Pause retains the media frame.
+**Creative North Star: “The Omarchy shell projection panel.”** Beam follows Omarchy shell panels in Operate mode: compact monospace typography, square flat controls, thin borders, and the live desktop palette. The user's shell-panel direction supersedes the earlier large dark Material controller. Light and dark themes are equally native to the system.
 
 **Key Characteristics:**
 
-- Native Qt Quick Controls Material in dark mode.
-- Live Omarchy accent and Hyprland corner behavior.
-- Flat tonal hierarchy with restrained emphasis.
-- Operator controls grouped above and below a flexible queue.
+- Full live palette and shell base-font size.
+- Dense single-window controls with a flexible playlist.
+- Square buttons and fields, small circular slider handles.
+- Separate mpv media/standby output; no competing controller preview.
 
-The frontmatter records actual static primitives and the documented fallback values. Live Qt expressions are carried in `.impeccable/design.json`; the fallback accent and sharp fallback must never replace runtime bindings.
+Portable frontmatter records actual fixed geometry and explicitly named fallback values. Dynamic QML bindings live in `.impeccable/design.json`; fallback colors are not a screenshot palette or fixed runtime theme.
 
 ## Colors
 
-The palette combines near-black surfaces, clear neutral text, and one live desktop accent.
-
 ### Primary
 
-- **Live desktop accent:** `theme.accent`, bound to `Material.accent`, reads `accent` from `~/.local/state/omarchy/current/theme/colors.toml`. The `accent-fallback` primitive is used only when that file or its six-digit hex accent is unavailable. File and directory watches re-arm after changes, with an 80ms debounce.
-- **Readable accent ink:** `theme.accentForeground` selects black or white using relative luminance. `BeamButton` explicitly colors its `Text` content item with this value when highlighted; native Material's highlighted text does not reliably honor foreground alone.
+The accent comes from `theme.accent`, read from `~/.local/state/omarchy/current/theme/colors.toml`. It marks projection status, highlighted transport, and focused controls. Highlighted text buttons retain the theme foreground over a translucent accent surface; they are no longer solid accent buttons with contrast-selected ink.
 
 ### Neutral
 
-- **Main:** the window canvas.
-- **Panel:** the queue surface and Material primary surface.
-- **Foreground:** primary names, labels, and enabled neutral icons.
-- **Secondary:** explanatory copy, paths, clocks, and status when projection is off.
-- **Divider:** thin structural separators.
-- **Row hover:** a quiet queue hover surface.
-- **Disabled icon:** unavailable icon actions.
+`theme.colors.background` supplies both window and playlist backgrounds. `foreground` supplies primary text, vectors, and alpha-derived borders; `light_foreground` supplies secondary copy and unselected paths in both theme modes. The selected row path uses `foreground` for sufficient contrast over `selection`. The current playlist row uses `selection`, rather than a fixed dark surface or accent wash. Hover uses foreground at 0.08 alpha. Playlist borders use foreground at 0.16 alpha; structural dividers use 0.12.
 
 ### Semantic feedback
 
-`error-panel` and `error-foreground` form the dismissible error banner. Missing-file names and status use the error foreground. The current queue item uses `Qt.alpha(theme.accent, .14)`; this is a Qt color expression, not a fixed palette swatch.
+Missing-file text uses `theme.colors.red`. Error banners combine this role with a 0.1-alpha red background. All six-digit hex color entries in colors.toml are loaded; missing roles retain Theme defaults. The frontmatter records the fallback values used by these components, not the active light palette. Theme also initializes `dark_background` and `lighter_background`, which current custom QML surfaces do not use.
 
-**The Live Accent Rule.** Bind accent use to `theme.accent`; choose highlighted button text through `theme.accentForeground`. Do not freeze the fallback palette into a theme.
+**The Whole Theme Rule.** Keep playlist, controls, text, selection, and feedback bound to their live roles. Do not retain a hardcoded dark playlist inside a light shell theme. Material mode follows the file's `mode = "light"`; otherwise it is dark.
 
 ## Typography
 
-The body inherits the Qt Material/platform font. No application font family or universal body pixel size is set in code; the earlier provisional 14px body specification is not an implementation token. Clock labels explicitly use the platform monospace family. Sizes in frontmatter are QML `font.pixelSize` values, expressed in Qt logical pixels rather than browser CSS pixels.
+All controller text uses the system `monospace` alias, matching the shell's font choice without naming a specific installed family. Body size binds to `theme.fontSize`, read live from shell.toml `base-size`, clamped to 8–24 logical pixels with the documented fallback. Header size is base+4; current-item title and help heading are base+2; playlist and empty-state headings are base+1; queue paths are base−1. At the fallback base these are 16, 14, 13, and 11 logical pixels respectively. Header, playlist, and current-item titles are demi-bold; active queue names also become demi-bold.
 
-The app title and current-item title use demi-bold emphasis. Section headings use the smaller section-title role. Queue titles use the inherited body size and become demi-bold for the current item. Secondary paths use the path role; output descriptions and playback state use the status role. The empty-state heading uses the section-title size at its inherited weight. Shortcut help uses the current-title size at its inherited weight and a text line-height multiplier of 1.6.
-
-Use right elision for queue titles and current-item names; use middle elision for paths and standby filenames. Preserve translation-aware labels and inherited text direction.
+Elide titles on the right and paths/standby filenames in the middle. Preserve translation-aware labels and Qt text-direction mirroring. QML pixel sizes are logical desktop units; `px` in frontmatter is portable notation, not CSS source.
 
 ## Layout
 
-The default window is 920×760 logical pixels; its minimum is 720×740. There are no web breakpoints or alternate navigation layouts. A single column fills the window with outer margins and regular vertical spacing. Rows use small or regular gaps; closely related stacked text uses tight spacing.
+Default window: 800×580 logical pixels. Minimum: 620×540. One column uses the outer spacing token for margins and small spacing between major groups. Output selection and projection action lead, followed by guidance and inline standby controls. Playlist occupies the flexible center, with a 100-pixel minimum height, one-pixel inner inset, clipped scrolling, and compact rows. Each row uses 12-pixel left and 8-pixel right insets, with small gaps.
 
-The header leads into display selection and projection control, output guidance, and inline standby controls. The queue occupies the flexible center, with a minimum height of 100 logical pixels. Queue rows are 62 logical pixels tall, with 12px left and 8px right insets and a one-pixel queue inset. Continue and repeat settings sit beneath the queue. A divider separates the current media, speed, timeline, transport, and volume group anchored below it. The shortcut popup is centered, padded with the outer spacing token, and constrained to the smaller of 500 logical pixels or window width minus 48.
-
-At minimum size the structure remains intact; the queue gives up height and scrolls. The reviewed Danish strings fit at that size. Layout mirroring follows the Qt application's text direction. Display choice is disabled during projection, preventing a live output change through that field.
+Continue automatically and Repeat playlist sit below the queue. Current media, state, speed, timeline, transport, and volume remain grouped below a divider. At reduced sizes the queue gives up height and scrolls; there are no browser breakpoints. The help popup is centered, uses outer padding, and caps width at the smaller of 500 or window width minus 48. The speed selector is 78 pixels wide; volume's preferred slider width is 100.
 
 ## Elevation & Depth
 
-Beam's custom surfaces are flat and distinguished by tone, dividers, and the translucent current-item accent. There are no custom shadows or elevation tokens. Qt Material owns native button, popup, focus, hover, pressed, and disabled rendering; preserve those platform treatments instead of inventing a parallel effect system.
+Custom surfaces are flat. Alpha-derived fills and one-pixel outlines convey hover, focus, selection, and grouping without custom shadows. Qt Quick Controls Material remains the underlying control framework, but button, combo box, checkbox, slider, icon button, and help-popup visuals are explicitly shell-styled. Do not reintroduce the previous spacious Material appearance.
 
 ## Shapes
 
-Corners follow the effective Hyprland `decoration:rounding` value, read through `hyprctl` and refreshed every second. Without Hyprland the fallback is sharp. `theme.radius` is passed to `Material.roundedScale` on the window, buttons, and combo boxes; custom queue/error rectangles use it as their QML radius. These are different Qt properties, so do not claim that Material's rendered corner radius is numerically identical to the rectangle radius.
+Buttons, dropdowns, checkboxes, playlist, and popup backgrounds are square. Check indicators are 14×14 with an 8×8 square checked mark. Slider tracks are four pixels tall with the track rounding token; handles use the circular handle token. Icon artwork is 16×16 inside the icon-button geometry.
 
-Icons are consistent monochrome vector assets, with 20×20 logical-pixel artwork in 40×40 icon controls. No decorative imagery is part of the controller; the optional standby image belongs to the output.
+Hyprland rounding is still read into `theme.radius` and supplied to Material's roundedScale, and the error banner uses it as a QML radius. This does not override the custom components' explicit square geometry. No-Hyprland fallback is zero; Material roundedScale and Rectangle.radius are different Qt properties.
 
 ## Components
 
-### Buttons
+### Buttons and icon controls
 
-`BeamButton` is the native Material button with inherited metrics and live corner binding. Normal labels use foreground; highlighted labels use readable accent ink. Disabled label opacity is 0.38. Its explicit text item stays centered, renders plain text, and elides on the right. Start projection is highlighted while output is off; End projection uses the normal treatment.
+`BeamButton` has compact fixed-height geometry, foreground text, and a one-pixel outline. Default background is foreground at 0.04 alpha; flat buttons are transparent without a border at rest. Hover/focus uses 0.08 alpha and pressed uses 0.22; highlighted rest uses accent at 0.12. Highlighted/focused borders use accent at 0.4 alpha; disabled borders use 0.16. Disabled text opacity is 0.4. Labels remain centered plain text with right elision.
 
-`IconButton` is a native Material tool button with an accessible name and a tooltip delayed 500ms. Enabled icons use foreground; highlighted transport uses the live accent; disabled icons use the disabled-icon primitive. Standard textual tool buttons retain native Material styling.
+`IconButton` uses foreground or highlighted accent, with disabled icon opacity 0.35. Its surface is transparent at rest, foreground at 0.08 for hover/focus and 0.18 when pressed; keyboard focus adds an accent border. Accessible names and 500ms tooltips identify vector actions.
 
-### Output and standby controls
+### Dropdowns and checkboxes
 
-The display combo box expands beside the projection action. Inline standby shows Black screen or the selected image basename, with a full-path tooltip. Choose image opens selection; Use black appears only when an image exists. The status copy distinguishes projection off, connecting, standby, playing, and paused.
+`BeamComboBox` uses foreground text, a drawn chevron, a square outlined field, and a square popup on the live background. The popup scrolls above a 240-pixel height cap. Focus changes its border to accent. `BeamCheckBox` replaces both previous switch and checkbox visuals with a compact square indicator and foreground square checked mark; focus outlines the indicator in accent.
 
-### Queue
+### Sliders
 
-The panel is a clipped, vertically scrollable list. Each row keeps play, title/path, move up/down, and remove together. The active item has a subtle accent tint and stronger title; hover uses the neutral hover primitive. Empty queue copy names both drag/drop and Add media entry points. Queue tools disable when their action cannot apply.
+`BeamSlider` uses a foreground-alpha track and progress fill with a small circular foreground handle. Disabled handles use the selection role. Keyboard focus adds a two-pixel accent handle border. The control's implicit height is 24, with six-pixel horizontal padding.
 
-### Native fields and transport
+### Playlist and output
 
-Display and speed use Material combo boxes. Timeline and volume use Material sliders; timeline disables until active media has a duration. Continue automatically and Repeat playlist use a native switch and checkbox. Keep standard Qt focus, hover, keyboard, and disabled affordances. The help popup lists the application's existing keyboard shortcuts and closes through Close, Escape, or an outside press.
+The playlist follows the complete live theme, including selection and secondary text. Each row retains play, title/path, move, and remove actions. The empty state explains drop and Add media entry points. Output selection disables while projection is active. Standby names either Black screen or the chosen image; Use black appears only when an image exists.
 
-### Standby output
+### Standby signature
 
-The separate mpv output remains open on Stop and noncontinuous EOF, returning to black or the selected image. Continuous playback advances through the queue; repeat is a distinct setting. Do not add a competing controller preview or expose controller controls on the projection surface.
+The separate mpv output stays open on Stop or noncontinuous EOF, returning to black or the chosen image. Pause retains the media frame. State copy distinguishes projection off, connecting, standby, playing, and paused. Preserve accessible control names, existing keyboard shortcuts, native interaction semantics, and the shortcut popup.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** inherit Omarchy's live accent and Hyprland corner behavior.
-- **Do** preserve explicit readable ink for highlighted button labels.
-- **Do** keep output and standby above the flexible queue and transport below it.
-- **Do** retain accessible control names, native keyboard affordances, text elision, and translation-aware layout.
-- **Do** verify populated, empty, compact, translated, and fallback-accent states when changing layout or theme behavior.
+- **Do** inherit the full live palette and shell font size, including the playlist.
+- **Do** retain compact square controls and small circular slider handles.
+- **Do** keep display/standby above the flexible queue and transport below it.
+- **Do** check light, dark, compact, empty, and translated states when changing visuals.
 
 ### Don't:
 
-- **Don't** treat fallback accent or sharp corners as fixed runtime values.
-- **Don't** introduce browser tokens, web breakpoints, CSS component replicas, or invented font metrics into this native Qt system.
-- **Don't** add decorative depth or a competing video preview to the restrained controller.
-- **Don't** collapse stopped, paused, and standby into one visual state.
+- **Don't** freeze fallback dark colors into QML or document them as the active light theme.
+- **Don't** restore oversized rounded Material buttons or large typography.
+- **Don't** invent browser breakpoints, CSS replicas, or static font sizes for dynamic roles.
+- **Don't** merge pause, stop, and standby into one state or add a competing controller preview.

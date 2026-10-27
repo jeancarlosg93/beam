@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QIcon>
 #include "backend.h"
+#include "mpris.h"
 #include "theme.h"
 #include "translator.h"
 int main(int argc, char **argv) {
@@ -20,6 +21,7 @@ int main(int argc, char **argv) {
     QList<QUrl> files;
     for (const auto &arg : app.arguments().mid(1)) files << QUrl::fromLocalFile(QFileInfo(arg).absoluteFilePath());
     if (!files.isEmpty()) backend.addFiles(files);
+    Mpris mpris(&backend);
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
     engine.rootContext()->setContextProperty("translator", &translator);
@@ -27,9 +29,13 @@ int main(int argc, char **argv) {
     engine.rootContext()->setContextProperty("backend", &backend);
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
+    QObject::connect(&mpris, &Mpris::raiseRequested, &engine, [&engine] {
+        auto *window=qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->show(); window->raise(); window->requestActivate();
+    });
     if (qEnvironmentVariableIsSet("BEAM_CAPTURE_COMPACT")) {
         auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        w->resize(720,740);
+        w->resize(620,540);
     }
     const auto capture = qEnvironmentVariable("BEAM_CAPTURE");
     if (!capture.isEmpty()) QTimer::singleShot(1200, &app, [&] {

@@ -32,6 +32,10 @@ public:
     explicit Backend(const QString &stateFile = {}, bool headless = false, QObject *parent = nullptr);
     ~Backend() override;
     QVariantList playlist() const;
+    int count() const { return m_paths.size(); }
+    QString mediaPath(int index) const { return m_paths.value(index); }
+    void cue(int index);
+    void pause();
     QStringList screens() const { return m_screens; }
     QString screen() const { return m_screen; }
     int current() const { return m_current; }
@@ -59,7 +63,7 @@ public:
     Q_INVOKABLE void clearPlaceholder();
     Q_INVOKABLE void project();
     Q_INVOKABLE void endProjection();
-    Q_INVOKABLE void play(int index = -1);
+    Q_INVOKABLE void play(int index = -1, bool paused = false);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void next();
@@ -74,6 +78,7 @@ public:
 signals:
     void changed();
     void playlistChanged();
+    void seeked(double seconds);
 private slots:
     void portalResponse(uint response, const QVariantMap &results);
 private:
@@ -88,6 +93,7 @@ private:
     int m_current = -1, m_volume = 80;
     double m_position = 0, m_duration = 0, m_speed = 1;
     bool m_media = false, m_paused = true, m_muted = false;
+    bool m_desiredPaused = true, m_pendingPaused = false;
     bool m_continuous = false, m_repeat = false, m_headless, m_pickerPlaceholder = false;
     bool m_pickerPending = false;
     int m_pendingPlay = -1, m_retries = 0;

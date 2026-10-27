@@ -2,7 +2,7 @@
 
 # Beam
 
-A Qt Quick playlist controller for projecting mpv video fullscreen on a display you choose. The operator window stays separate from the output. It follows Omarchy's accent and Hyprland window rounding live.
+A Qt Quick playlist controller for projecting mpv video fullscreen on a display you choose. The operator window stays separate from the output. It follows Omarchy's full light/dark palette and 12px monospace shell typography live, with compact square controls and a theme-colored playlist.
 
 1. Add videos with **Add media**, drag and drop, or `beam file.mp4`.
 2. Select the output display and choose **Start projection**. Standby is black by default; use **Choose image** for a custom still image.
@@ -24,9 +24,15 @@ User installation puts the binary in `~/.local/bin/beam` and the launcher entry 
 
 For a system package, `bin/install` runs `makepkg -fsi` and needs administrator authentication. A built package is in `pkgbuild/beam-0.1.0-1-x86_64.pkg.tar.zst`.
 
-Build dependencies: Qt 6 base, declarative, Wayland, SVG, a C++17 compiler and make. Runtime: mpv and xdg-desktop-portal with an active file chooser backend. Tests also need ffmpeg. No libmpv development package is needed.
+Build dependencies: Qt 6 base, declarative, Wayland, SVG, a C++17 compiler and make. Runtime: mpv and xdg-desktop-portal with an active file chooser backend. Tests also need ffmpeg and gdbus (glib2). No libmpv development package is needed.
 
 The app starts a dedicated mpv process with its own private IPC socket and `--no-config`, so personal mpv bindings/scripts cannot affect the clean projection output. Output is selected by connector name, using mpv's `screen-name` and `fs-screen-name` options. Disconnecting the selected output ends projection. Switch display targets by ending and restarting projection.
+
+## System media controls
+
+Beam implements [MPRIS](https://specifications.freedesktop.org/mpris/latest/), the Linux media-player D-Bus API. Omarchy's existing play/pause and next/previous keys control it through the shell media service. It appears as **Beam** in system media controls with track title and playback state. When several players are open, the shell's selected player determines which one receives media keys.
+
+Play/pause, next/previous, stop, seek, playback rate, repeat mode and volume are exposed. Stop returns the projection to standby. System next/previous preserve paused or stopped state; the app's row play buttons explicitly start playback. The standard service is `org.mpris.MediaPlayer2.beam`; additional instances use a PID suffix. No desktop keybindings are changed.
 
 ## Shortcuts
 
@@ -45,7 +51,7 @@ The app starts a dedicated mpv process with its own private IPC socket and `--no
 
 Session data is saved atomically to the Qt application data directory (normally `~/.local/share/beam/session.json`). Missing files remain in the queue and show an error when played. Omarchy's language file is watched live; English and Danish interface catalogs are included, with English fallback for untranslated strings and other languages. No Omarchy configuration is changed.
 
-`bin/test` exercises session recovery, playlist ordering, actual mpv playback/pause/seek/speed/volume/mute, standby after EOF, continuous repeat, shutdown/restart, theme/translation parsing and real Qt Quick keyboard interaction. `BEAM_LIVE_TEST=1 build/tests/beam_tests qmlInteraction` runs the interaction check on the active Wayland session. The external display workflow still needs physical verification with a second monitor; development was done with only eDP-1 connected.
+`bin/test` exercises session recovery, playlist ordering, actual mpv playback/pause/seek/speed/volume/mute, standby after EOF, continuous repeat, shutdown/restart, live palette/font reload, translation parsing, external D-Bus media-control calls and real Qt Quick keyboard interaction. `BEAM_LIVE_TEST=1 build/tests/beam_tests qmlInteraction` runs the interaction check on the active Wayland session. The external display workflow still needs physical verification with a second monitor; development was done with only eDP-1 connected.
 
 For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller after initial rendering and exits; `BEAM_CAPTURE_COMPACT=1` requests the minimum size. Demo screenshots use synthetic files under `/tmp/beam-demo`; these are not installed or added to your real playlist.
 

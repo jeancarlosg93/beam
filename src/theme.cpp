@@ -94,15 +94,29 @@ void Theme::reload() {
     while (!QFileInfo::exists(ancestor) && ancestor != "/")
         ancestor = QFileInfo(ancestor).absolutePath();
     QStringList candidates{ancestor, QFileInfo(ancestor).absolutePath(), m_directory,
-                           m_directory + "/theme", m_directory + "/theme/colors.toml"};
+                           m_directory + "/theme", m_directory + "/theme/colors.toml", m_directory + "/theme/shell.toml"};
     candidates.removeDuplicates();
     for (const auto &path : candidates)
         if (QFileInfo::exists(path))
             m_watcher.addPath(path);
 
-    const auto accent = readAccent(m_directory + "/theme/colors.toml");
-    if (accent != m_accent) {
-        m_accent = accent;
-        emit changed();
+    QVariantMap colors{{"background", "#0e0e10"}, {"foreground", "#eeeeef"},
+        {"dark_background", "#19191c"}, {"lighter_background", "#25252b"},
+        {"light_foreground", "#b6b6bf"}, {"selection", "#35353c"}, {"red", "#ef667a"}};
+    QFile file(m_directory + "/theme/colors.toml");
+    QString text;
+    if (file.open(QIODevice::ReadOnly)) text = QString::fromUtf8(file.readAll());
+    const QRegularExpression expression(R"re(^\s*([a-z_]+)\s*=\s*["'](#[0-9a-fA-F]{6})["'])re", QRegularExpression::MultilineOption);
+    auto matches = expression.globalMatch(text);
+    while (matches.hasNext()) { const auto match = matches.next(); colors[match.captured(1)] = match.captured(2); }
+    m_colors = colors;
+    m_accent = readAccent(m_directory + "/theme/colors.toml");
+    m_light = QRegularExpression(R"re(mode\s*=\s*["']light["'])re").match(text).hasMatch();
+    QFile shell(m_directory + "/theme/shell.toml");
+    m_fontSize = 12;
+    if (shell.open(QIODevice::ReadOnly)) {
+        const auto font = QRegularExpression(R"(^\s*base-size\s*=\s*(\d+))", QRegularExpression::MultilineOption).match(QString::fromUtf8(shell.readAll()));
+        if (font.hasMatch()) m_fontSize = qBound(8, font.captured(1).toInt(), 24);
     }
+    emit changed();
 }

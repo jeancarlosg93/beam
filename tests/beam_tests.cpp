@@ -8,6 +8,7 @@
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include "backend.h"
+#include "mpris.h"
 #include "theme.h"
 #include "translator.h"
 class BeamTests : public QObject {
@@ -65,11 +66,63 @@ private slots:
         b.project(); QTRY_VERIFY_WITH_TIMEOUT(b.ready(),6000); QVERIFY(!b.mediaActive());
         b.endProjection(); QVERIFY(b.error().isEmpty());
     }
+    void mprisSystemControls() {
+        Backend b(dir.filePath("mpris.json"),true);
+        b.addFiles({QUrl::fromLocalFile(video),QUrl::fromLocalFile(video)});
+        const QString service="org.mpris.MediaPlayer2.beam.test"+QString::number(QCoreApplication::applicationPid());
+        Mpris mpris(&b,service); QVERIFY(mpris.registered());
+        auto call = [&](QStringList arguments, QString *output=nullptr) {
+            QProcess client;
+            client.start("gdbus", QStringList{"call","--session","--dest",service,"--object-path","/org/mpris/MediaPlayer2","--method"}+arguments);
+            QElapsedTimer timer; timer.start();
+            while (client.state()!=QProcess::NotRunning && timer.elapsed()<5000) QTest::qWait(10);
+            if (output) *output=QString::fromUtf8(client.readAllStandardOutput());
+            if (client.state()!=QProcess::NotRunning) { client.kill(); client.waitForFinished(); return false; }
+            if (client.exitCode()!=0) qWarning().noquote()<<client.readAllStandardError();
+            return client.exitCode()==0;
+        };
+        const QString iface="org.mpris.MediaPlayer2.Player";
+        QString result;
+        QVERIFY(call({"org.freedesktop.DBus.Properties.Get",iface,"PlaybackStatus"},&result));
+        QVERIFY(result.contains("Stopped"));
+        QVERIFY(call({iface+".PlayPause"}));
+        QTRY_VERIFY_WITH_TIMEOUT(b.ready() && b.duration()>2,6000);
+        QVERIFY(call({iface+".Pause"})); QTRY_VERIFY(!b.playing());
+        QVERIFY(call({"org.freedesktop.DBus.Properties.Get",iface,"PlaybackStatus"},&result));
+        QVERIFY(result.contains("Paused"));
+        QVERIFY(call({iface+".Next"})); QTRY_COMPARE(b.current(),1);
+        QTRY_VERIFY(b.duration()>2); QTRY_VERIFY(!b.playing());
+        for (int attempt=0; attempt<6; ++attempt) {
+            QVERIFY(call({iface+(attempt%2 ? ".Next" : ".Previous")}));
+            QTRY_COMPARE(b.current(),attempt%2 ? 1 : 0);
+            QTRY_VERIFY(b.duration()>2); QTRY_VERIFY(!b.playing());
+            QTest::qWait(120); QVERIFY(b.mediaActive()); QVERIFY(!b.playing());
+        }
+        QVERIFY(call({iface+".Play"})); QTRY_VERIFY(b.playing());
+        QVERIFY(call({iface+".Pause"})); QTRY_VERIFY(!b.playing());
+        QVERIFY(call({"org.freedesktop.DBus.Properties.Set",iface,"Volume","<0.42>"})); QTRY_COMPARE(b.volume(),42);
+        QVERIFY(call({iface+".Seek","1000000"})); QTRY_VERIFY(b.position()>.9);
+        QVERIFY(call({"org.freedesktop.DBus.Properties.GetAll",iface},&result));
+        QVERIFY(result.contains("xesam:title")); QVERIFY(result.contains("mpris:trackid"));
+        QVERIFY(call({iface+".Stop"})); QVERIFY(!b.mediaActive()); QVERIFY(b.projecting());
+        QVERIFY(call({iface+".Previous"})); QCOMPARE(b.current(),0); QVERIFY(!b.mediaActive());
+        b.endProjection();
+    }
     void themeAndLanguage() {
         Theme t(dir.path()); QCOMPARE(t.accent(),QString("#FFD60A"));
         QDir(dir.path()).mkpath("theme"); QFile colors(dir.filePath("theme/colors.toml"));
         QVERIFY(colors.open(QIODevice::WriteOnly)); colors.write("accent = \"#112233\"\n"); colors.close();
         Theme dark(dir.path()); QCOMPARE(dark.accent(),QString("#112233")); QCOMPARE(dark.accentForeground(),QString("white"));
+        QCOMPARE(dark.colors().value("foreground").toString(),QString("#eeeeef"));
+        QVERIFY(colors.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        colors.write("mode = \"light\"\naccent = \"#123456\"\nbackground = \"#eff1f5\"\nforeground = \"#4c4f69\"\nselection = \"#ccd0da\"\n"); colors.close();
+        QTRY_VERIFY(dark.light());
+        QCOMPARE(dark.colors().value("background").toString(),QString("#eff1f5"));
+        QCOMPARE(dark.colors().value("selection").toString(),QString("#ccd0da"));
+        QCOMPARE(dark.accent(),QString("#123456"));
+        QFile shell(dir.filePath("theme/shell.toml"));
+        QVERIFY(shell.open(QIODevice::WriteOnly)); shell.write("[font]\nbase-size = 13\n"); shell.close();
+        QTRY_COMPARE(dark.fontSize(),13);
         QFile lang(dir.filePath("language")); QVERIFY(lang.open(QIODevice::WriteOnly)); lang.write("da\n"); lang.close();
         QFile catalog(dir.filePath("da.json")); QVERIFY(catalog.open(QIODevice::WriteOnly)); catalog.write("{\"Playlist\":\"Afspilningsliste\"}"); catalog.close();
         Translator tr(dir.filePath("language"),dir.path()); QCOMPARE(tr.language(),QString("da"));
@@ -89,7 +142,7 @@ private slots:
         QTest::keyClick(w,Qt::Key_Space); QTRY_VERIFY_WITH_TIMEOUT(b.ready(),6000);
         QTRY_VERIFY(b.mediaActive());
         QTest::keyClick(w,Qt::Key_S); QTRY_VERIFY(!b.mediaActive()); QVERIFY(b.projecting());
-        w->resize(720,740); QTest::qWait(100);
+        w->resize(620,540); QTest::qWait(100);
         QVERIFY(!w->grabWindow().isNull());
         if (qEnvironmentVariableIsSet("BEAM_LIVE_TEST")) w->grabWindow().save("/home/jeanc/Work/beam/.impeccable/review/live-test-compact.png");
         b.endProjection();
