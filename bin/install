@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ "${1:-}" = "--user" ]; then
+  "$ROOT/bin/build"
+  install -Dm755 "$ROOT/build/beam" "$HOME/.local/bin/beam"
+  install -Dm644 "$ROOT/pkgbuild/beam.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/beam.svg"
+  mkdir -p "$HOME/.local/share/applications"
+  sed "s|^Exec=.*|Exec=$HOME/.local/bin/beam %F|" "$ROOT/pkgbuild/beam.desktop" > "$HOME/.local/share/applications/beam.desktop"
+  command -v update-desktop-database >/dev/null && update-desktop-database "$HOME/.local/share/applications" || true
+  exit 0
+fi
+cd "$ROOT/pkgbuild"
+exec makepkg -fsi "$@"

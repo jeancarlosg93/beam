@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Beam
+Comment=Control a playlist and project video fullscreen to a chosen display
+Comment[da]=Styr en afspilningsliste og vis video i fuld skærm på en valgt skærm
+Exec=beam %F
+Icon=beam
+Terminal=false
+Categories=AudioVideo;Player;Video;
+StartupWMClass=beam
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;

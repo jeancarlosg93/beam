@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T22:51:23.220882+00:00",
+  "title": "Design System: Beam",
+  "extensions": {
+    "colorMeta": {
+      "accent-fallback": {
+        "role": "primary",
+        "displayName": "Fallback desktop accent",
+        "purpose": "Only used when the Omarchy accent cannot be read; runtime binding is theme.accent."
+      },
+      "main": {
+        "role": "neutral",
+        "displayName": "Main canvas"
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Queue panel"
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Primary ink"
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Secondary ink"
+      }
+    },
+    "typographyMeta": {
+      "app-title": {
+        "displayName": "App title",
+        "purpose": "Beam header."
+      },
+      "current-title": {
+        "displayName": "Current item",
+        "purpose": "Current media name; help heading uses its size only."
+      },
+      "clock": {
+        "displayName": "Clock",
+        "purpose": "Platform monospace; inherits size."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [],
+    "nativeQt": {
+      "platform": "Linux",
+      "style": "Qt Quick Controls Material",
+      "theme": "Material.Dark",
+      "units": "QML logical pixels; frontmatter px values are portable notation, not CSS source.",
+      "bodyTypography": "Inherited Qt Material/platform font; no explicit global family or pixel size.",
+      "bindings": {
+        "accent": {
+          "expression": "theme.accent",
+          "target": "Material.accent",
+          "source": "~/.local/state/omarchy/current/theme/colors.toml: accent",
+          "updates": "File/directory watcher, 80ms debounce; re-arms after replacement."
+        },
+        "accentInk": {
+          "expression": "theme.accentForeground",
+          "target": "BeamButton.contentItem.color when highlighted",
+          "rule": "Relative luminance > .179 chooses black; otherwise white."
+        },
+        "rounding": {
+          "expression": "theme.radius",
+          "source": "hyprctl -j getoption decoration:rounding",
+          "updates": "1000ms polling; sharp fallback when unavailable.",
+          "targets": [
+            "Material.roundedScale",
+            "Rectangle.radius"
+          ],
+          "caveat": "Material roundedScale and rectangle pixel radius are distinct Qt properties."
+        },
+        "currentQueueRow": {
+          "expression": "Qt.alpha(theme.accent, .14)",
+          "target": "Current queue delegate background"
+        }
+      },
+      "window": {
+        "default": {
+          "width": 920,
+          "height": 760
+        },
+        "minimum": {
+          "width": 720,
+          "height": 740
+        },
+        "responsiveBehavior": "One column; queue absorbs vertical changes and scrolls."
+      },
+      "interaction": {
+        "iconArtworkSize": 20,
+        "tooltipDelayMs": 500,
+        "disabledButtonTextOpacity": 0.38,
+        "queueRowHeight": 62,
+        "nativeStates": "Hover, focus, pressed, and disabled use native Material rendering."
+      },
+      "components": [
+        {
+          "name": "BeamButton",
+          "source": "src/BeamButton.qml",
+          "description": "Material button with explicit contrast-aware highlighted Text item.",
+          "refersTo": null
+        },
+        {
+          "name": "IconButton",
+          "source": "src/IconButton.qml",
+          "description": "Accessible 40\u00d740 icon tool control with 20\u00d720 vector and delayed tooltip.",
+          "refersTo": "icon-button"
+        },
+        {
+          "name": "Queue",
+          "source": "src/Main.qml",
+          "description": "Flat clipped list with active accent tint, title/path, row actions, and explanatory empty state.",
+          "refersTo": "queue"
+        },
+        {
+          "name": "Output and standby",
+          "source": "src/Main.qml",
+          "description": "Display selection, projection action, named black/image standby, and state copy."
+        },
+        {
+          "name": "Transport",
+          "source": "src/Main.qml",
+          "description": "Current title, state, speed, timeline, playback, and volume anchored beneath queue."
+        }
+      ],
+      "previewPolicy": "No HTML/CSS replicas generated: native QML components cannot truthfully render in the web shadow-DOM panel."
+    },
+    "evidence": {
+      "review": ".impeccable/review/review.md",
+      "finalVerdict": ".impeccable/review/verdict.md",
+      "disposition": "Ship; fallback highlighted-button contrast resolved.",
+      "screenshots": [
+        ".impeccable/review/desktop.png",
+        ".impeccable/review/compact.png",
+        ".impeccable/review/empty.png",
+        ".impeccable/review/danish.png",
+        ".impeccable/review/readme.png"
+      ],
+      "detector": "Not applicable; native Qt. No detector ran.",
+      "composition": "No comp.",
+      "limitation": "Physical second-monitor placement unverified; only laptop display connected."
+    }
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "The Omarchy projection desk",
+    "overview": "Beam inherits Omarchy in Operate mode: a quiet dark native Qt Material controller with live accent, flat tonal hierarchy, and a readable queue. The separate mpv output shows only media or black/image standby; Stop and noncontinuous EOF preserve that output surface.",
+    "keyCharacteristics": [
+      "Native Qt Quick Controls Material in dark mode",
+      "Live desktop accent and Hyprland corner behavior",
+      "Flat tonal hierarchy",
+      "Output above queue; transport below"
+    ],
+    "rules": [
+      {
+        "name": "The Live Accent Rule",
+        "body": "Bind accent use to theme.accent and highlighted button ink to theme.accentForeground.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do preserve readable highlighted labels.",
+      "Do keep output and standby above the flexible queue and transport below.",
+      "Do retain native accessibility and translation-aware layout."
+    ],
+    "donts": [
+      "Don't freeze fallback accent or corner values into runtime styling.",
+      "Don't invent web tokens or font metrics.",
+      "Don't collapse stopped, paused, and standby states."
+    ]
+  }
+}
