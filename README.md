@@ -1,8 +1,11 @@
-![Beam with a demonstration playlist](.impeccable/review/readme.png)
-
 # Beam
 
 A Qt Quick playlist controller for projecting mpv video fullscreen on a display you choose. The operator window stays separate from the output. It follows Omarchy's full light/dark palette and 12px monospace shell typography live, with compact square controls and a theme-colored playlist.
+
+| Light theme | Dark theme |
+| --- | --- |
+| ![Beam with a demonstration playlist in a light Omarchy theme](docs/screenshots/light.png) | ![Beam with a demonstration playlist in a dark Omarchy theme](docs/screenshots/dark.png) |
+
 
 1. Add videos with **Add media**, drag and drop, or `beam file.mp4`.
 2. Select the output display and choose **Start projection**. Standby is black by default; use **Choose image** for a custom still image.
@@ -15,6 +18,8 @@ The selected item stays selected after it finishes; Play starts it again. Previo
 ## Install and build
 
 ```sh
+git clone https://github.com/jeancarlosg93/beam.git
+cd beam
 bin/build
 bin/test
 bin/install --user
@@ -22,11 +27,21 @@ bin/install --user
 
 User installation puts the binary in `~/.local/bin/beam` and the launcher entry under `~/.local/share/applications/`. Open **Beam** from `Super + Space`.
 
-For a system package, `bin/install` runs `makepkg -fsi` and needs administrator authentication. A built package is in `pkgbuild/beam-0.1.0-1-x86_64.pkg.tar.zst`.
+For a system package, `bin/install` runs `makepkg -fsi` and needs administrator authentication. The resulting Arch package is written to `pkgbuild/`.
 
 Build dependencies: Qt 6 base, declarative, Wayland, SVG, a C++17 compiler and make. Runtime: mpv and xdg-desktop-portal with an active file chooser backend. Tests also need ffmpeg and gdbus (glib2). No libmpv development package is needed.
 
 The app starts a dedicated mpv process with its own private IPC socket and `--no-config`, so personal mpv bindings/scripts cannot affect the clean projection output. Output is selected by connector name, using mpv's `screen-name` and `fs-screen-name` options. Disconnecting the selected output ends projection. Switch display targets by ending and restarting projection.
+
+## Omarchy projection rules
+
+To keep the projection bright when the controller has focus and prevent idle screen-off while the output is open, add this to `~/.config/hypr/looknfeel.lua`:
+
+```lua
+o.window("^beam-output$", { no_dim = true, idle_inhibit = "always" })
+```
+
+Reload with `hyprctl reload`, then check `hyprctl configerrors`. The exception targets the separate projection window, including paused video and standby. Ending projection releases its idle inhibitor. Installing Beam does not edit Hyprland configuration automatically.
 
 ## System media controls
 
