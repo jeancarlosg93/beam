@@ -14,6 +14,7 @@ ApplicationWindow {
     Material.accent: theme.accent; Material.primary: theme.colors.background
     Material.foreground: theme.colors.foreground; Material.roundedScale: theme.radius
     property bool allowClose: false
+    readonly property color modalScrim: "#99000000"
     function titleAt(i) { return i >= 0 && i < backend.playlist.length ? backend.playlist[i].title : qsTr("No media selected") }
     function openPlaylist() { if (backend.dirty) discard.open(); else backend.choosePlaylist("open") }
     Shortcut { sequence: "?"; context: Qt.ApplicationShortcut; onActivated: help.open() }
@@ -195,7 +196,7 @@ ApplicationWindow {
     Drawer {
         id: settings; objectName: "settings"; edge: Qt.RightEdge; width: Math.min(440,win.width-40); height: win.height; padding: 16; leftPadding: 16; rightPadding: 16; topPadding: 16; bottomPadding: 16
         background: Rectangle { color: theme.colors.background; border.color: Qt.alpha(theme.colors.foreground,.4) }
-        Overlay.modal: Rectangle { color: Qt.alpha(theme.colors.background,.7) }
+        Overlay.modal: Rectangle { color: win.modalScrim }
         contentItem: ScrollView {
             id: settingsScroll; objectName: "settingsScroll"; clip: true; contentWidth: availableWidth
             ColumnLayout {
@@ -249,17 +250,20 @@ ApplicationWindow {
         }
     }
     Popup {
+        Overlay.modal: Rectangle { color: win.modalScrim }
         id: discard; anchors.centerIn: parent; width: Math.min(460,win.width-48); modal: true; focus: true; padding: 16
         background: Rectangle { color: theme.colors.background; border.color: Qt.alpha(theme.colors.foreground,.4) }
         ColumnLayout { anchors.fill: parent; Label { text: qsTr("Unsaved playlist changes"); font.weight: Font.DemiBold } Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("Save first, or discard changes when opening another playlist.") } RowLayout { BeamButton { text: qsTr("Save…"); onClicked: { discard.close(); backend.choosePlaylist("save") } } BeamButton { text: qsTr("Discard and open…"); onClicked: { discard.close(); backend.choosePlaylist("open-discard") } } BeamButton { text: qsTr("Cancel"); onClicked: discard.close() } } }
     }
     Popup {
+        Overlay.modal: Rectangle { color: win.modalScrim }
         id: quitConfirm; objectName: "quitConfirm"; anchors.centerIn: parent; width: Math.min(460,win.width-48); modal: true; focus: true; padding: 16
         background: Rectangle { color: theme.colors.background; border.color: Qt.alpha(theme.colors.foreground,.4) }
         ColumnLayout { anchors.fill: parent; Label { text: qsTr("Save named playlist before quitting?") } Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("Session recovery is saved automatically. The named playlist has unsaved changes.") } RowLayout { BeamButton { text: qsTr("Save…"); onClicked: { quitConfirm.close(); backend.choosePlaylist("save") } } BeamButton { objectName: "quitWithoutSaving"; text: qsTr("Quit"); onClicked: { win.allowClose = true; quitConfirm.close(); win.close() } } BeamButton { text: qsTr("Cancel"); onClicked: quitConfirm.close() } } }
     }
     Popup {
-        id: help; anchors.centerIn: parent; width: Math.min(500,win.width-48); modal: true; focus: true; padding: 16
+        Overlay.modal: Rectangle { color: win.modalScrim }
+        id: help; objectName: "shortcuts"; anchors.centerIn: parent; width: Math.min(500,win.width-48); modal: true; focus: true; padding: 16
         background: Rectangle { color: theme.colors.background; border.color: Qt.alpha(theme.colors.foreground,.4) }
         ColumnLayout { anchors.fill: parent; spacing: 8
             Label { text: qsTr("Keyboard shortcuts"); font.pixelSize: theme.fontSize+2 }

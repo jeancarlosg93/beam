@@ -149,3 +149,5 @@ The cue strip has title, start seconds, Play cue and a private scrubber. Live ti
 Occasional controls live in a compact, scrollable right-hand settings drawer (maximum 440 pixels): audio destination/blackout policy, display setup, standby image, playlist exchange, and private presentation settings. Opening the drawer performs no playback action. Input fields share square outlined geometry and 28-pixel height. Unsaved named-playlist changes use a protected save/discard decision before loading another playlist; session recovery remains automatic.
 
 All operational additions inherit palette/font roles and are translatable. Media/identify surfaces deliberately use black/white for audience confidence and screen legibility. Normal motion remains native control feedback; no decorative animation is added.
+
+Modal backdrops use 60% black (`#99000000`) in both themes, including the settings drawer, shortcuts, and playlist confirmation dialogs. The dialog surface keeps the active theme palette.

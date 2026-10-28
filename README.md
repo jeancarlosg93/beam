@@ -85,6 +85,6 @@ Session data is written atomically to `~/.local/share/beam/session.json`. Existi
 
 `bin/test` uses generated media, a private session bus and headless mpv to verify cue/live separation, identities, persistence/migration, device/track/aspect/volume settings, blackout, preview cleanup, display recovery, MPRIS and actual QML keyboard/mouse reorder. It also verifies safe setup against temporary configurations. Physical multi-monitor placement and speaker routing require hardware checks, detailed in the status record.
 
-For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller and exits; `BEAM_CAPTURE_COMPACT=1`, `BEAM_CAPTURE_PREVIEW=1` and `BEAM_CAPTURE_SETTINGS=1` select QA states. Screenshots contain synthetic demonstration media only.
+For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller and exits; `BEAM_CAPTURE_COMPACT=1`, `BEAM_CAPTURE_PREVIEW=1` `BEAM_CAPTURE_SETTINGS=1`, and `BEAM_CAPTURE_SHORTCUTS=1` select QA states. Screenshots contain synthetic demonstration media only.
 
 Licensed under MIT. Theme/language infrastructure is adapted from Omarchy app templates (Omacut / Monologue, David Heinemeier Hansson).

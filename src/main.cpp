@@ -104,10 +104,12 @@ int main(int argc, char **argv) {
     qobject_cast<QQuickWindow *>(engine.rootObjects().first())
         ->resize(800, 740);
   }
-  if (qEnvironmentVariableIsSet("BEAM_CAPTURE_SETTINGS"))
+  if (qEnvironmentVariableIsSet("BEAM_CAPTURE_SETTINGS") ||
+      qEnvironmentVariableIsSet("BEAM_CAPTURE_SHORTCUTS"))
     QTimer::singleShot(200, &app, [&] {
       auto *drawer =
-          engine.rootObjects().first()->findChild<QObject *>("settings");
+          engine.rootObjects().first()->findChild<QObject *>(
+              qEnvironmentVariableIsSet("BEAM_CAPTURE_SHORTCUTS") ? "shortcuts" : "settings");
       if (drawer)
         QMetaObject::invokeMethod(drawer, "open");
     });
