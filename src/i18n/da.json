@@ -161,5 +161,9 @@
   "Space    Play / pause\nB    Toggle blackout\nS / Esc    Stop to standby\nLeft / Right    Seek 5 seconds\nCtrl + Left / Right    Previous / next\nM    Mute / unmute\nCtrl + O    Add media\n?    Show shortcuts\nQ    Quit and close output": "Mellemrum    Afspil / pause\nB    Slå sortlægning til / fra\nS / Esc    Stop til standby\nVenstre / Højre    Søg 5 sekunder\nCtrl + Venstre / Højre    Forrige / næste\nM    Slå lyd fra / til\nCtrl + O    Tilføj medier\n?    Vis genveje\nQ    Afslut og luk udgangen",
   "Cannot start ffprobe. Install ffmpeg to inspect media durations and tracks.": "Kan ikke starte ffprobe. Installér ffmpeg for at undersøge varighed og spor.",
   "Cannot enumerate audio devices. Install mpv and refresh devices.": "Kan ikke finde lydenheder. Installér mpv, og opdatér enhederne.",
-  "Saved audio output %1 is unavailable. Using System default until it returns or you select another device.": "Den gemte lydudgang %1 er utilgængelig. Bruger Systemstandard, indtil den vender tilbage, eller du vælger en anden enhed."
+  "Saved audio output %1 is unavailable. Using System default until it returns or you select another device.": "Den gemte lydudgang %1 er utilgængelig. Bruger Systemstandard, indtil den vender tilbage, eller du vælger en anden enhed.",
+  "Output preview": "Udgangsvisning",
+  "Low · 1–2 fps": "Lav · 1–2 fps",
+  "Smooth · up to 12 fps": "Flydende · op til 12 fps",
+  "Output preview refresh rate": "Opdateringshastighed for udgangsvisning"
 }

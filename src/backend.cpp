@@ -42,6 +42,7 @@ Backend::Backend(const QString &stateFile, bool headless, QObject *parent)
     m_repeat = o["repeat"].toBool();
     m_audioDevice = o["audioDevice"].toString("auto");
     m_blackoutAudio = o["blackoutAudio"].toBool(true);
+    m_previewMode = o["previewMode"].toString() == "smooth" ? "smooth" : "low";
     m_playlistFile = o["playlistFile"].toString();
     m_dirty = o["dirty"].toBool();
     m_current = count() ? 0 : -1;
@@ -121,7 +122,8 @@ Backend::Backend(const QString &stateFile, bool headless, QObject *parent)
   m_identifyTimer.setSingleShot(true);
   m_identifyTimer.setInterval(5000);
   connect(&m_identifyTimer, &QTimer::timeout, this, &Backend::dismissIdentify);
-  m_previewTimer.setInterval(700);
+  m_previewTimer.setTimerType(Qt::PreciseTimer);
+  m_previewTimer.setInterval(m_previewMode == "smooth" ? 84 : 700);
   connect(&m_previewTimer, &QTimer::timeout, this, &Backend::capturePreview);
   m_cueTimer.setSingleShot(true);
   m_cueTimer.setInterval(180);
@@ -230,6 +232,7 @@ void Backend::save() {
                       {"repeat", m_repeat},
                       {"audioDevice", m_audioDevice},
                       {"blackoutAudio", m_blackoutAudio},
+                      {"previewMode", m_previewMode},
                       {"playlistFile", m_playlistFile},
                       {"dirty", m_dirty}};
   if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(o).toJson()) < 0 ||
@@ -303,6 +306,8 @@ void Backend::project() {
                    "--stop-screensaver=yes",
                    "--image-display-duration=inf",
                    "--audio-client-name=Beam",
+                   "--screenshot-format=jpg",
+                   "--screenshot-jpeg-quality=75",
                    "--input-ipc-server=" + m_runtime.path() + "/mpv.sock"};
   if (m_headless)
     args << "--vo=null" << "--ao=null";
@@ -709,6 +714,16 @@ void Backend::setPreviewEnabled(bool v) {
   emit changed();
   emit previewChanged();
 }
+void Backend::setPreviewMode(const QString &value) {
+  if ((value != "low" && value != "smooth") || m_previewMode == value)
+    return;
+  m_previewMode = value;
+  // Keep at most one capture in flight even if the selected cadence is faster
+  // than the output device can capture. Never queue up work behind playback.
+  m_previewTimer.setInterval(value == "smooth" ? 84 : 700);
+  save();
+  emit changed();
+}
 void Backend::capturePreview() {
   if (!m_previewEnabled)
     return;
@@ -719,7 +734,7 @@ void Backend::capturePreview() {
   if (!m_capturePath.isEmpty())
     return;
   m_capturePath =
-      m_runtime.filePath(QString("live-%1.png").arg(++m_captureSequence));
+      m_runtime.filePath(QString("live-%1.jpg").arg(++m_captureSequence));
   command({"screenshot-to-file", m_capturePath, "window"},
           "preview:" + QString::number(m_previewGeneration) + ":" +
               m_capturePath);

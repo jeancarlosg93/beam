@@ -147,11 +147,22 @@ ApplicationWindow {
                 Accessible.name: qsTr("Private cue position"); onMoved: backend.setCueSetting("start",value)
             }
             RowLayout {
+                visible: backend.previewEnabled; Layout.fillWidth: true
+                Label { text: qsTr("Output preview"); color: theme.colors.light_foreground; Layout.fillWidth: true }
+                BeamComboBox {
+                    objectName: "previewMode"; implicitWidth: 240
+                    model: [qsTr("Low · 1–2 fps"), qsTr("Smooth · up to 12 fps")]
+                    currentIndex: backend.previewMode === "smooth" ? 1 : 0
+                    Accessible.name: qsTr("Output preview refresh rate")
+                    onActivated: backend.previewMode = currentIndex === 1 ? "smooth" : "low"
+                }
+            }
+            RowLayout {
                 visible: backend.previewEnabled; Layout.fillWidth: true; Layout.preferredHeight: visible ? 140 : 0; Layout.maximumHeight: 140; spacing: 8
                 Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true; color: "black"
                     Image {
-                        anchors.fill: parent; anchors.margins: 2; fillMode: Image.PreserveAspectFit; cache: false
+                        anchors.fill: parent; anchors.margins: 2; fillMode: Image.PreserveAspectFit; cache: false; sourceSize: Qt.size(640,360)
                         source: !backend.projecting || backend.blackout ? "" : !backend.mediaActive && !backend.testing ? (backend.placeholder.length ? "file://"+backend.placeholder : "") : backend.livePreview
                     }
                     Label { anchors.top: parent.top; anchors.left: parent.left; padding: 5; text: qsTr("Output · %1").arg(backend.outputState); color: "white"; background: Rectangle { color: "#cc000000" } }

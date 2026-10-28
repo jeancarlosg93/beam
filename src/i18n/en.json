@@ -141,5 +141,9 @@
   "mpv could not play this file: %1": "mpv could not play this file: %1",
   "mpv did not respond. End projection and try again.": "mpv did not respond. End projection and try again.",
   "mpv exited unexpectedly: %1": "mpv exited unexpectedly: %1",
-  "mpv: %1": "mpv: %1"
+  "mpv: %1": "mpv: %1",
+  "Output preview": "Output preview",
+  "Low · 1–2 fps": "Low · 1–2 fps",
+  "Smooth · up to 12 fps": "Smooth · up to 12 fps",
+  "Output preview refresh rate": "Output preview refresh rate"
 }

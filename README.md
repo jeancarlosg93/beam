@@ -15,7 +15,7 @@ Selecting or editing a cue never redirects live transport or MPRIS. Queue entrie
 
 ## Preview, blackout and presentation
 
-**Preview** shows the current output state and an independently labeled private cue image. Live frames are sampled from the audience mpv process approximately every 700ms, including the paused frame; this is a confidence monitor, not frame-accurate synchronization. Private frames are decoded once with ffmpeg and no audio. Hiding preview stops its timer and decoder. Capture errors show an unavailable state, never an old frame labeled live.
+**Preview** shows the current output state and an independently labeled private cue image. The **Output preview** selector offers **Low** (every 700ms, about 1–2 fps) and **Smooth** (up to 12 fps). Low is the default; your choice is saved. Live frames are sampled from the audience mpv process, including the paused frame; this is a confidence monitor, not frame-accurate synchronization. Smooth uses more resources; only one capture is allowed in flight, so slower hardware reduces refresh rate rather than building a backlog. Captures use JPEG and bounded display decoding. Private frames are decoded once with ffmpeg and no audio. Hiding preview stops its timer and decoder. Capture errors show an unavailable state, never an old frame labeled live.
 
 **Blackout** (`B`) masks the audience picture, including subtitles, while preserving playback position and playing/paused intent. Settings chooses whether audio continues. Master mute/volume changes made during blackout remain in effect afterward. Blackout stays engaged through Stop, EOF, Next and new cues until explicitly cleared; End projection clears it.
 

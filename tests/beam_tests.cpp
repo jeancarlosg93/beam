@@ -448,6 +448,26 @@ private slots:
     b.setAudioDevice("missing");
     QCOMPARE(b.audioDevice(), QString("auto"));
   }
+  void previewModesPersist() {
+    const QString state = dir.filePath("preview-mode.json");
+    Backend b(state, true);
+    QCOMPARE(b.previewMode(), QString("low"));
+    QCOMPARE(b.m_previewTimer.interval(), 700);
+    b.setPreviewMode("smooth");
+    QCOMPARE(b.m_previewTimer.interval(), 84);
+    QVERIFY(!b.m_previewTimer.isActive());
+    Backend restored(state, true);
+    QCOMPARE(restored.previewMode(), QString("smooth"));
+    QCOMPARE(restored.m_previewTimer.interval(), 84);
+    QVERIFY(!restored.previewEnabled());
+    QVERIFY(!restored.projecting());
+    b.setPreviewMode("invalid");
+    QCOMPARE(b.previewMode(), QString("smooth"));
+    b.setPreviewMode("low");
+    QCOMPARE(b.m_previewTimer.interval(), 700);
+    Backend low(state, true);
+    QCOMPARE(low.previewMode(), QString("low"));
+  }
   void previewsAndDisplayRecovery() {
     Backend b(dir.filePath("preview.json"), true);
     b.addFiles({QUrl::fromLocalFile(multi)});
@@ -470,6 +490,17 @@ private slots:
     QTest::qWait(1000);
     QVERIFY(!b.livePreview().isEmpty() ||
             b.previewMessage() == b.tr("Output frame unavailable"));
+    b.setPreviewMode("smooth");
+    const int lowCaptures = b.m_captureSequence;
+    QTRY_VERIFY_WITH_TIMEOUT(b.m_captureSequence >= lowCaptures + 4, 2000);
+    QVERIFY(!b.playing());
+    const QString pending = b.m_capturePath;
+    b.m_capturePath = "capture-in-progress";
+    const int beforeBlocked = b.m_captureSequence;
+    b.capturePreview();
+    b.capturePreview();
+    QCOMPARE(b.m_captureSequence, beforeBlocked);
+    b.m_capturePath = pending;
     b.setPreviewEnabled(false);
     const int captures = b.m_captureSequence;
     QTest::qWait(850);
@@ -604,6 +635,16 @@ private slots:
     QVERIFY(scroll->width() > 300);
     QVERIFY(scroll->height() > 450);
     QVERIFY(QMetaObject::invokeMethod(settings, "close"));
+    QTest::qWait(200);
+    b.setPreviewEnabled(true);
+    w->resize(800, 740);
+    auto *previewMode = findItem(w->contentItem(), "previewMode");
+    QVERIFY(previewMode);
+    previewMode->forceActiveFocus();
+    QTest::keyClick(w, Qt::Key_Space);
+    QTest::keyClick(w, Qt::Key_End);
+    QTest::keyClick(w, Qt::Key_Return);
+    QTRY_COMPARE(b.previewMode(), QString("smooth"));
     QVERIFY(b.dirty());
     QVERIFY(!w->close());
     auto *confirmation = w->findChild<QObject *>("quitConfirm");

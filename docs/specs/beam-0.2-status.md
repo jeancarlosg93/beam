@@ -51,3 +51,9 @@ The mpv property-query test helper now matches request IDs instead of treating t
 User acceptance reports uncovered two further issues before publication. The Quit button now explicitly clears the close guard before closing the window; the QML mouse test verifies closing a dirty playlist without saving. Display identification now uses a separate mpv process for each connector, with both screen-name and fs-screen-name set, because Qt top-level screen hints placed both cards on one monitor. Tests verify two distinct connector arguments and process cleanup; actual compositor placement remains a hardware acceptance check. The full suite passed again after both fixes (11 Qt / 3 setup).
 
 Follow-up visual review replaced Material's bright modal scrims with a shared 60% black backdrop for shortcuts, settings and playlist dialogs. Rendered shortcuts in both light/dark themes and refreshed the settings screenshot; modal surfaces retain the active theme palette.
+
+## Preview refresh modes
+
+Added a persisted Output preview selector: Low uses the original 700ms interval; Smooth targets one frame every 84ms (up to 12 fps). Capture remains single-flight, uses JPEG quality 75 and decodes to a bounded 640×360 display size. Hiding previews stops captures in either mode; the private cue remains a still frame. Real achieved refresh depends on output hardware/capture latency.
+
+Verification: 12 Qt checks and 3 setup checks passed, including mode persistence/default/invalid-value handling, faster headless capture requests, suppression of overlapping requests, cleanup and keyboard selection in the actual QML control. Rendered light/dark and Danish preview layouts and refreshed the preview screenshot. Physical GPU frame rate is not established by the headless tests.

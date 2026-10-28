@@ -39,6 +39,7 @@ class Backend : public QObject {
                  changed)
   Q_PROPERTY(bool previewEnabled READ previewEnabled WRITE setPreviewEnabled
                  NOTIFY changed)
+  Q_PROPERTY(QString previewMode READ previewMode WRITE setPreviewMode NOTIFY changed)
   Q_PROPERTY(QString livePreview READ livePreview NOTIFY previewChanged)
   Q_PROPERTY(QString cuePreview READ cuePreview NOTIFY previewChanged)
   Q_PROPERTY(QString previewMessage READ previewMessage NOTIFY previewChanged)
@@ -90,6 +91,7 @@ public:
   bool blackout() const { return m_blackout; }
   bool blackoutAudio() const { return m_blackoutAudio; }
   bool previewEnabled() const { return m_previewEnabled; }
+  QString previewMode() const { return m_previewMode; }
   QString livePreview() const { return m_livePreview; }
   QString cuePreview() const { return m_cuePreview; }
   QString previewMessage() const { return m_previewMessage; }
@@ -107,6 +109,7 @@ public:
   void setBlackout(bool value);
   void setBlackoutAudio(bool value);
   void setPreviewEnabled(bool value);
+  void setPreviewMode(const QString &value);
   void setAudioDevice(const QString &value);
   void setAudioDevices(const QVariantList &devices);
   void updateScreens(const QStringList &names, const QStringList &labels);
@@ -180,6 +183,7 @@ private:
   QString m_pendingId, m_audioDevice = "auto", m_livePreview, m_cuePreview,
                        m_previewMessage;
   QString m_capturePath, m_cuePath, m_cueToken, m_deviceWarning;
+  QString m_previewMode = "low";
   int m_retries = 0, m_requestId = 0, m_captureSequence = 0,
       m_previewGeneration = 0;
   QHash<int, QString> m_requests;
