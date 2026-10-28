@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ "${1:-}" = "--setup-output" ]; then
+  shift
+  exec "$ROOT/bin/setup-output" "$@"
+fi
 if [ "${1:-}" = "--user" ]; then
   "$ROOT/bin/build"
   install -Dm755 "$ROOT/build/beam" "$HOME/.local/bin/beam"

@@ -139,3 +139,13 @@ The separate mpv output stays open on Stop or noncontinuous EOF, returning to bl
 - **Don't** restore oversized rounded Material buttons or large typography.
 - **Don't** invent browser breakpoints, CSS replicas, or static font sizes for dynamic roles.
 - **Don't** merge pause, stop, and standby into one state or add a competing controller preview.
+
+## Beam 0.2 screening controls
+
+The collapsed controller remains 800×580, usable at 620×540. The header now groups output status, Blackout, Preview and Settings; display routing sits immediately below. Playlist name/Open/Save/Add lead the flexible queue. A row number is its drag handle, the row body selects a private cue, and the existing play icon remains an explicit audience action. Cue selection uses `selection`; the live row's play icon and title weight identify the active item independently. Per-item durations sit before the retained move/remove controls. Totals distinguish unknown media.
+
+The cue strip has title, start seconds, Play cue and a private scrubber. Live title, elapsed/remaining timeline and ordinary transport remain below a divider. Preview adds a 140-pixel row and expands the window to 740 pixels when opened by the operator. Two explicitly labeled black media surfaces show sampled Output and Private cue; white labels on translucent black remain legible independent of media content. Output state labels include unmistakable BLACKOUT. The capture cadence is 700ms; showing a cue does not start another playback timeline.
+
+Occasional controls live in a compact, scrollable right-hand settings drawer (maximum 440 pixels): audio destination/blackout policy, display setup, standby image, playlist exchange, and private presentation settings. Opening the drawer performs no playback action. Input fields share square outlined geometry and 28-pixel height. Unsaved named-playlist changes use a protected save/discard decision before loading another playlist; session recovery remains automatic.
+
+All operational additions inherit palette/font roles and are translatable. Media/identify surfaces deliberately use black/white for audience confidence and screen legibility. Normal motion remains native control feedback; no decorative animation is added.

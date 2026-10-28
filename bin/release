@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Build/check a reproducible local source archive and versioned Arch package."""
+from pathlib import Path
+import argparse
+import gzip
+import hashlib
+import io
+import os
+import subprocess
+import tarfile
+
+root=Path(__file__).resolve().parents[1]
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--skip-checks',action='store_true',help='Use only after the same tree passed bin/build and bin/test')
+args=parser.parse_args()
+version='0.2.0'
+if not args.skip_checks:
+    subprocess.run([str(root/'bin/build')],check=True,cwd=root)
+    subprocess.run([str(root/'bin/test')],check=True,cwd=root)
+out=root/'dist'; out.mkdir(exist_ok=True)
+epoch=int(os.environ.get('SOURCE_DATE_EPOCH','1793188800'))
+files=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=root).decode().split('\0')
+archive=out/f'beam-{version}.tar.gz'
+with archive.open('wb') as target, gzip.GzipFile(filename='',mode='wb',fileobj=target,mtime=epoch) as zipped, tarfile.open(fileobj=zipped,mode='w') as tar:
+    for name in sorted(filter(None,files)):
+        if name.startswith(('dist/','build/','.impeccable/review/')) or '__pycache__' in name: continue
+        path=root/name
+        if not path.is_file(): continue
+        info=tar.gettarinfo(str(path),arcname=f'beam-{version}/{name}')
+        info.uid=info.gid=0; info.uname=info.gname=''; info.mtime=epoch
+        with path.open('rb') as source: tar.addfile(info,source)
+checksum=hashlib.sha256(archive.read_bytes()).hexdigest()
+pkg=out/'PKGBUILD'
+pkg.write_text(f'''pkgname=beam
+pkgver={version}
+pkgrel=1
+pkgdesc='A compact screening controller for fullscreen mpv projection'
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'qt6-svg' 'mpv' 'ffmpeg' 'xdg-desktop-portal')
+makedepends=('gcc' 'make')
+source=('beam-{version}.tar.gz')
+sha256sums=('{checksum}')
+build() {{ cd "$srcdir/beam-$pkgver"; ./bin/build; }}
+package() {{
+  cd "$srcdir/beam-$pkgver"
+  install -Dm755 build/beam "$pkgdir/usr/bin/beam"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/beam/LICENSE"
+  install -Dm644 pkgbuild/beam.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/beam.svg"
+  install -Dm644 pkgbuild/beam.desktop "$pkgdir/usr/share/applications/beam.desktop"
+}}
+''')
+subprocess.run(['makepkg','--force','--nodeps'],cwd=out,check=True,env={**os.environ,'SOURCE_DATE_EPOCH':str(epoch)})
+assets=[archive]+sorted(out.glob('beam-*.pkg.tar.*'))
+(out/'SHA256SUMS').write_text(''.join(hashlib.sha256(path.read_bytes()).hexdigest()+'  '+path.name+'\n' for path in assets))
+print(f'Release assets prepared in {out}; publication is a separate explicit step.')

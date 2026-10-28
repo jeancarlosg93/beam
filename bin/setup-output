@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Opt-in, backed-up Beam-only Hyprland Lua setup; never changes global dimming."""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+BEGIN = "-- BEGIN Beam output rules"
+END = "-- END Beam output rules"
+RULE = 'o.window("^beam-output$", { no_dim = true, idle_inhibit = "always" })'
+
+
+def atomic_write(path, text):
+    fd, temporary = tempfile.mkstemp(prefix=".beam-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, path.stat().st_mode & 0o777)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def configure(path, validate=True):
+    original = path.read_text(encoding="utf-8")
+    block = BEGIN + "\n" + RULE + "\n" + END
+    if BEGIN in original:
+        if END not in original:
+            raise RuntimeError("Incomplete Beam section; repair it before setup.")
+        updated = re.sub(re.escape(BEGIN) + r".*?" + re.escape(END), lambda _: block, original, flags=re.S)
+    elif RULE in original:
+        updated = original
+    else:
+        updated = original.rstrip() + "\n\n" + block + "\n"
+    backup = None
+    if updated != original:
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        backup = path.with_name(path.name + ".bak.beam-" + stamp)
+        shutil.copy2(path, backup)
+        atomic_write(path, updated)
+    if validate:
+        try:
+            subprocess.run(["hyprctl", "reload"], check=True, capture_output=True, text=True)
+            result = subprocess.run(["hyprctl", "configerrors"], check=True, capture_output=True, text=True)
+            if result.stdout.strip() not in ("", "ok"):
+                raise RuntimeError(result.stdout.strip())
+        except Exception:
+            if backup:
+                atomic_write(path, original)
+                subprocess.run(["hyprctl", "reload"], check=False, capture_output=True)
+            raise
+    return {"changed": updated != original, "backup": str(backup) if backup else None, "validated": validate}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=Path.home()/".config/hypr/looknfeel.lua")
+    parser.add_argument("--no-reload", action="store_true", help="Prepare a non-live config fixture; no compositor validation")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+    try:
+        result = configure(args.config, not args.no_reload)
+        print(json.dumps(result) if args.json else ("Beam output rules ready. " + ("Hyprland validated." if result["validated"] else "Reload/validation skipped explicitly.")))
+    except Exception as error:
+        parser.exit(1, f"Beam setup failed: {error}\n")
+
+if __name__ == "__main__":
+    main()

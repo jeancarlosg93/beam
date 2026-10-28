@@ -1,19 +1,35 @@
 # Beam
 
-A Qt Quick playlist controller for projecting mpv video fullscreen on a display you choose. The operator window stays separate from the output. It follows Omarchy's full light/dark palette and 12px monospace shell typography live, with compact square controls and a theme-colored playlist.
-
 | Light theme | Dark theme |
 | --- | --- |
-| ![Beam with a demonstration playlist in a light Omarchy theme](docs/screenshots/light.png) | ![Beam with a demonstration playlist in a dark Omarchy theme](docs/screenshots/dark.png) |
+| ![Beam 0.2 with synthetic screening media in a light theme](docs/screenshots/light.png) | ![Beam 0.2 with synthetic screening media in a dark theme](docs/screenshots/dark.png) |
 
+A compact Qt Quick controller for projecting mpv video fullscreen on a display you choose. Prepare the next cue privately while the audience watches the current video. Beam follows Omarchy's live palette and monospace shell font, with square 28px controls.
 
-1. Add videos with **Add media**, drag and drop, or `beam file.mp4`.
-2. Select the output display and choose **Start projection**. Standby is black by default; use **Choose image** for a custom still image.
-3. Play a video using its row's play button. Videos stop at the end and return to standby. Use **Next** to cue the following video. Enable **Continue automatically** for continuous playback.
+1. Add local videos with **Add media**, drag and drop, or `beam file.mp4`.
+2. Choose the output connector and **Start projection**. It opens standby; choose a standby image in Settings if desired.
+3. Click a row to prepare its cue, scrub the private cue position or enter a start time in seconds. **Play cue** switches the audience output. A row's play icon also starts that row explicitly.
+4. **Pause** holds the frame, **Stop** returns to standby, and **End projection** closes the output. EOF returns to standby unless **Auto next** is enabled. Repeat wraps the queue.
 
-**Pause** holds the video frame. **Stop** returns to standby. **End projection** closes the output window and enables display selection again. The playlist, standby image, output choice, volume, repeat and continuation settings are restored next time. Original media files are never modified. Audio uses the system's default output; change the audio destination in Omarchy's sound settings if necessary.
+Selecting or editing a cue never redirects live transport or MPRIS. Queue entries have independent IDs, even for duplicate paths; drag a row number to reorder, or use its move arrows. Missing files can be relinked in Settings.
 
-The selected item stays selected after it finishes; Play starts it again. Previous/Next play their target immediately. Repeat wraps Next, and wraps automatic playback when continuation is enabled.
+## Preview, blackout and presentation
+
+**Preview** shows the current output state and an independently labeled private cue image. Live frames are sampled from the audience mpv process approximately every 700ms, including the paused frame; this is a confidence monitor, not frame-accurate synchronization. Private frames are decoded once with ffmpeg and no audio. Hiding preview stops its timer and decoder. Capture errors show an unavailable state, never an old frame labeled live.
+
+**Blackout** (`B`) masks the audience picture, including subtitles, while preserving playback position and playing/paused intent. Settings chooses whether audio continues. Master mute/volume changes made during blackout remain in effect afterward. Blackout stays engaged through Stop, EOF, Next and new cues until explicitly cleared; End projection clears it.
+
+Settings lists audio devices by their mpv identity, with **System default** and an explicit unavailable state for a disconnected saved device. Select a device to apply it and save the choice. A missing saved device uses the system default until it returns or you choose another device.
+
+Cue settings include embedded audio and subtitle tracks, subtitles off, original aspect (default), fill/crop, or explicit 4:3 / 16:9 aspect. Reset restores defaults. These settings take effect on the next explicit play of that item, even if the same entry is currently live. Missing embedded tracks fall back to automatic audio / subtitles off.
+
+Per-item volume is an absolute 0–100 override; **Inherit master volume** is the default. The master slider and MPRIS Volume always control the saved master level. An item override takes precedence until that item ends; master mute always applies to every item. The override never changes the master value or leaks into the next item's inherited volume.
+
+## Save and exchange playlists
+
+**Save** writes a named `.beam` JSON playlist (format `beam-playlist`, version 2) atomically. It stores order, stable IDs, absolute local paths, cue positions, track selections, aspect and item volume. Session recovery is also saved automatically. Opening another playlist requires saving or explicitly discarding unsaved edits.
+
+Open/import local `.m3u` or `.m3u8` playlists with UTF-8 paths; relative paths resolve against that playlist's directory. Settings exports relative UTF-8 M3U8. Order and duplicate paths survive exchange. M3U cannot carry Beam IDs, start positions, aspect, tracks or volume, so those settings reset on import. Remote URLs are rejected. Duration probes run one at a time asynchronously; totals distinguish known duration from unknown items.
 
 ## Install and build
 
@@ -25,36 +41,37 @@ bin/test
 bin/install --user
 ```
 
-User installation puts the binary in `~/.local/bin/beam` and the launcher entry under `~/.local/share/applications/`. Open **Beam** from `Super + Space`.
+User installation puts the executable in `~/.local/bin/beam` and a launcher entry under `~/.local/share/applications/`. Open **Beam** with the Omarchy launcher. `bin/install` instead builds and installs a versioned Arch package with makepkg and administrator authentication. Re-run the same install command to update.
 
-For a system package, `bin/install` runs `makepkg -fsi` and needs administrator authentication. The resulting Arch package is written to `pkgbuild/`.
+Build: a C++17 compiler, make, Qt 6 base/declarative, Wayland and SVG packages. Runtime: mpv **0.38+**, ffmpeg (including ffprobe), and xdg-desktop-portal with a file chooser backend. Tests also use dbus-run-session, gdbus (glib2), and Python 3. Setup uses Python 3 and hyprctl. Arch releases use makepkg/fakeroot. No libmpv headers are needed.
 
-Build dependencies: Qt 6 base, declarative, Wayland, SVG, a C++17 compiler and make. Runtime: mpv and xdg-desktop-portal with an active file chooser backend. Tests also need ffmpeg and gdbus (glib2). No libmpv development package is needed.
+`beam check show.beam --json` checks a playlist without opening a window and returns 0 when all local media are readable. `beam convert show.m3u8 show.beam --json` converts playlists without a display (use a `.m3u8` output to export paths). Both return structured JSON and errors on stderr; conversion preserves missing entries for later relinking.
 
-The app starts a dedicated mpv process with its own private IPC socket and `--no-config`, so personal mpv bindings/scripts cannot affect the clean projection output. Output is selected by connector name, using mpv's `screen-name` and `fs-screen-name` options. Disconnecting the selected output ends projection. Switch display targets by ending and restarting projection.
+`bin/release` prepares source/package/checksum artifacts locally after build/tests. See [release notes](docs/release-0.2.0.md) and the [implementation and verification record](docs/specs/beam-0.2-status.md). GitHub CI builds and runs the behavioral suite on Arch Linux.
 
-## Omarchy projection rules
+## Display setup
 
-To keep the projection bright when the controller has focus and prevent idle screen-off while the output is open, add this to `~/.config/hypr/looknfeel.lua`:
+Output is selected by stable connector name with readable monitor details. **Identify displays** shows temporary numbered overlays (five seconds; Escape or click dismisses). Start projection, then invoke **Test pattern** in Settings to check framing, aspect and colors; **Return to standby** ends testing. Test pattern refuses to replace live playback. Disconnecting the selected output closes projection and preserves its identity; reconnect and explicitly restart, or choose another display. Beam never silently moves live output to a different connector.
 
-```lua
-o.window("^beam-output$", { no_dim = true, idle_inhibit = "always" })
+For Beam-only no-dimming and keep-awake rules on current Omarchy/Hyprland Lua:
+
+```sh
+bin/install --setup-output
 ```
 
-Reload with `hyprctl reload`, then check `hyprctl configerrors`. The exception targets the separate projection window, including paused video and standby. Ending projection releases its idle inhibitor. Installing Beam does not edit Hyprland configuration automatically.
+This opt-in action backs up `~/.config/hypr/looknfeel.lua`, preserves unrelated settings, adds only the `^beam-output$` rule, and checks `hyprctl reload` / `configerrors`. Validation failure rolls back. Repeating it is safe. Ordinary installation does not change desktop configuration. The output's idle inhibitor remains active during pause/standby and ends when projection closes. Current rule syntax: [Hyprland window rules](https://wiki.hypr.land/configuring/core/rules/window-rules/).
 
-## System media controls
+The audience process has a private IPC socket, `--no-config`, no controls/OSD or keyboard bindings. Personal mpv scripts cannot affect the clean output. Original media are never modified.
 
-Beam implements [MPRIS](https://specifications.freedesktop.org/mpris/latest/), the Linux media-player D-Bus API. Omarchy's existing play/pause and next/previous keys control it through the shell media service. It appears as **Beam** in system media controls with track title and playback state. When several players are open, the shell's selected player determines which one receives media keys.
+## System media controls and shortcuts
 
-Play/pause, next/previous, stop, seek, playback rate, repeat mode and volume are exposed. Stop returns the projection to standby. System next/previous preserve paused or stopped state; the app's row play buttons explicitly start playback. The standard service is `org.mpris.MediaPlayer2.beam`; additional instances use a PID suffix. No desktop keybindings are changed.
-
-## Shortcuts
+Beam implements [MPRIS](https://specifications.freedesktop.org/mpris/latest/) under `org.mpris.MediaPlayer2.beam` (additional instances use a PID suffix). Omarchy's normal media keys control the shell's selected player. MPRIS always describes the active item while it exists; private cue inspection never creates another media service. System Next/Previous preserve playing, paused or stopped intent. Row play and Play cue explicitly start playback.
 
 | Key | Action |
 | --- | --- |
 | Space | Play / pause |
-| S or Escape | Stop to standby |
+| B | Toggle blackout |
+| S or Escape | Stop to standby; Escape also dismisses display identification |
 | Left / Right | Seek backward / forward 5 seconds |
 | Ctrl + Left / Right | Play previous / next video |
 | M | Mute / unmute |
@@ -64,10 +81,10 @@ Play/pause, next/previous, stop, seek, playback rate, repeat mode and volume are
 
 ## State, language and verification
 
-Session data is saved atomically to the Qt application data directory (normally `~/.local/share/beam/session.json`). Missing files remain in the queue and show an error when played. Omarchy's language file is watched live; English and Danish interface catalogs are included, with English fallback for untranslated strings and other languages. No Omarchy configuration is changed.
+Session data is written atomically to `~/.local/share/beam/session.json`. Existing 0.1 sessions migrate without changing their file order. Omarchy language changes reload live; English and Danish catalogs cover the interface, with English fallback for other languages.
 
-`bin/test` exercises session recovery, playlist ordering, actual mpv playback/pause/seek/speed/volume/mute, standby after EOF, continuous repeat, shutdown/restart, live palette/font reload, translation parsing, external D-Bus media-control calls and real Qt Quick keyboard interaction. `BEAM_LIVE_TEST=1 build/tests/beam_tests qmlInteraction` runs the interaction check on the active Wayland session. The external display workflow still needs physical verification with a second monitor; development was done with only eDP-1 connected.
+`bin/test` uses generated media, a private session bus and headless mpv to verify cue/live separation, identities, persistence/migration, device/track/aspect/volume settings, blackout, preview cleanup, display recovery, MPRIS and actual QML keyboard/mouse reorder. It also verifies safe setup against temporary configurations. Physical multi-monitor placement and speaker routing require hardware checks, detailed in the status record.
 
-For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller after initial rendering and exits; `BEAM_CAPTURE_COMPACT=1` requests the minimum size. Demo screenshots use synthetic files under `/tmp/beam-demo`; these are not installed or added to your real playlist.
+For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller and exits; `BEAM_CAPTURE_COMPACT=1`, `BEAM_CAPTURE_PREVIEW=1` and `BEAM_CAPTURE_SETTINGS=1` select QA states. Screenshots contain synthetic demonstration media only.
 
-Licensed under MIT. Theme and language infrastructure is adapted from the Omarchy app templates (Omacut / Monologue, David Heinemeier Hansson).
+Licensed under MIT. Theme/language infrastructure is adapted from Omarchy app templates (Omacut / Monologue, David Heinemeier Hansson).

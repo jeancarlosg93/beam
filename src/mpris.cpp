@@ -47,7 +47,7 @@ void Mpris::publish() {
 void MprisRoot::Quit() { QTimer::singleShot(0, qApp, &QCoreApplication::quit); }
 QDBusObjectPath MprisPlayer::trackId() const {
     if (b->current()<0) return QDBusObjectPath("/org/mpris/MediaPlayer2/TrackList/NoTrack");
-    const auto hash = QCryptographicHash::hash(b->mediaPath(b->current()).toUtf8(),QCryptographicHash::Sha256).toHex();
+    const auto hash = QCryptographicHash::hash(b->mediaId(b->current()).toUtf8(),QCryptographicHash::Sha256).toHex();
     return QDBusObjectPath("/org/mpris/MediaPlayer2/track/" + QString::fromLatin1(hash));
 }
 QVariantMap MprisPlayer::metadata() const {

@@ -5,4 +5,5 @@ mkdir -p "$ROOT/build/tests"
 cd "$ROOT/build/tests"
 qmake6 "$ROOT/tests/beam_tests.pro"
 make -j"$(nproc)"
-QT_QPA_PLATFORM=offscreen ./beam_tests
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software dbus-run-session -- ./beam_tests
+python3 "$ROOT/tests/setup_output_test.py"

@@ -1,0 +1,19 @@
+name: Build and test
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: pacman -Syu --noconfirm qt6-base qt6-declarative qt6-wayland qt6-svg mpv ffmpeg dbus glib2 python
+      - name: Build
+        run: ./bin/build
+      - name: Behavioral and interaction tests
+        run: ./bin/test
+      - name: Versioned Arch package
+        run: |
+          useradd -m builder
+          chown -R builder .
+          su builder -c "cd '$GITHUB_WORKSPACE/pkgbuild' && makepkg --noconfirm --nodeps"
