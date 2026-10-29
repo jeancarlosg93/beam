@@ -35,6 +35,9 @@ Backend::Backend(const QString &stateFile, bool headless, QObject *parent)
       for (const auto &p : o["files"].toArray())
         items << QJsonObject{{"path", p.toString()}};
     m_queue.load(items);
+    m_outputMode =
+        o["outputMode"].toString() == "chromecast" ? "chromecast" : "local";
+    m_receiver = o["receiver"].toString();
     m_placeholder = o["placeholder"].toString();
     m_screen = o["screen"].toString();
     m_volume = qBound(0, o["volume"].toInt(80), 100);
@@ -55,6 +58,49 @@ Backend::Backend(const QString &stateFile, bool headless, QObject *parent)
     emit changed();
   });
   connect(&m_queue, &MediaQueue::failed, this, &Backend::fail);
+  connect(&m_cast, &OutputDriver::failed, this, &Backend::fail);
+  connect(&m_cast, &OutputDriver::devicesFound, this,
+          [this](const QVariantList &devices) {
+            m_receivers = devices;
+            emit changed();
+          });
+  connect(&m_cast, &OutputDriver::stateChanged, this, [this] {
+    if (localOutput())
+      return;
+    if (!m_cast.active()) {
+      m_media = false;
+      m_pendingId.clear();
+      m_position = m_duration = 0;
+      m_remoteState.clear();
+    } else if (ready() && !m_pendingId.isEmpty()) {
+      const int i = m_queue.index(m_pendingId);
+      m_pendingId.clear();
+      if (i >= 0)
+        play(i, m_pendingPaused);
+    }
+    emit changed();
+  });
+  connect(&m_cast, &OutputDriver::status, this, [this](const QJsonObject &o) {
+    if (localOutput() || !m_media || o["id"].toString() != m_remoteId)
+      return;
+    const auto state = o["state"].toString();
+    m_remoteState = state;
+    m_position = o["position"].toDouble();
+    m_duration = o["duration"].toDouble();
+    if (state == "finished") {
+      if (m_continuous)
+        next();
+      else
+        standby();
+    } else if (state == "stopped" || state == "error")
+      standby();
+    else {
+      m_paused = state != "PLAYING";
+      if (state == "PAUSED" || state == "PLAYING")
+        m_desiredPaused = m_paused;
+    }
+    emit changed();
+  });
   refreshScreens();
   connect(qApp, &QGuiApplication::screenAdded, this,
           [this] { refreshScreens(); });
@@ -168,6 +214,8 @@ Backend::~Backend() {
   dismissIdentify();
   setPreviewEnabled(false);
   endProjection();
+  disconnect(&m_cast, nullptr, this, nullptr);
+  m_cast.close();
   if (m_deviceProcess.state() != QProcess::NotRunning) {
     m_deviceProcess.kill();
     m_deviceProcess.waitForFinished(1000);
@@ -186,6 +234,12 @@ QString Backend::outputState() const {
     return tr("Projection off");
   if (!ready())
     return tr("Connecting…");
+  if (!localOutput()) {
+    if (!m_media)
+      return tr("Connected · No video");
+    if (m_remoteState == "loading" || m_remoteState == "BUFFERING")
+      return tr("Loading video…");
+  }
   if (m_blackout)
     return tr("BLACKOUT");
   if (m_testing)
@@ -211,7 +265,7 @@ void Backend::updateScreens(const QStringList &names,
   m_screenLabels = labels;
   if (m_screen.isEmpty())
     m_screen = names.size() > 1 ? names.last() : names.value(0);
-  if (!names.contains(m_screen) && projecting()) {
+  if (localOutput() && !names.contains(m_screen) && projecting()) {
     endProjection();
     fail(tr("Output %1 disconnected. Reconnect it or explicitly choose another "
             "display.")
@@ -227,6 +281,8 @@ void Backend::save() {
                       {"cueId", mediaId(m_cue)},
                       {"placeholder", m_placeholder},
                       {"screen", m_screen},
+                      {"outputMode", m_outputMode},
+                      {"receiver", m_receiver},
                       {"volume", m_volume},
                       {"continuous", m_continuous},
                       {"repeat", m_repeat},
@@ -245,6 +301,35 @@ void Backend::edited() {
   save();
   emit playlistChanged();
   emit changed();
+}
+void Backend::setOutputMode(const QString &mode) {
+  if ((mode != "local" && mode != "chromecast") || projecting() ||
+      discovering() || mode == m_outputMode)
+    return;
+  setPreviewEnabled(false);
+  dismissIdentify();
+  m_outputMode = mode;
+  m_error.clear();
+  save();
+  emit changed();
+}
+void Backend::setReceiver(const QString &id) {
+  if (projecting() || discovering())
+    return;
+  for (const auto &device : m_receivers) {
+    if (device.toMap()["id"].toString() == id) {
+      m_receiver = id;
+      save();
+      emit changed();
+      return;
+    }
+  }
+}
+void Backend::discoverReceivers() {
+  if (!localOutput() && !projecting()) {
+    m_error.clear();
+    m_cast.discover();
+  }
 }
 void Backend::setScreen(const QString &s) {
   if (projecting() || !m_screens.contains(s))
@@ -272,7 +357,7 @@ void Backend::addFiles(const QList<QUrl> &urls) {
   edited();
 }
 void Backend::command(const QJsonArray &args, const QString &purpose) {
-  if (!ready())
+  if (!localOutput() || !ready())
     return;
   QJsonObject o{{"command", args}};
   if (!purpose.isEmpty()) {
@@ -285,6 +370,17 @@ void Backend::command(const QJsonArray &args, const QString &purpose) {
 void Backend::project() {
   if (projecting())
     return;
+  if (!localOutput()) {
+    if (discovering())
+      return;
+    if (m_receiver.isEmpty()) {
+      fail(tr("Search for and choose a Chromecast receiver first."));
+      return;
+    }
+    m_error.clear();
+    m_cast.open(m_receiver);
+    return;
+  }
   if (!m_headless && !m_screens.contains(m_screen)) {
     fail(tr("The selected output is unavailable. Choose a connected display."));
     return;
@@ -320,6 +416,14 @@ void Backend::project() {
   emit changed();
 }
 void Backend::endProjection() {
+  if (!localOutput()) {
+    m_pendingId.clear();
+    m_cast.close();
+    m_media = false;
+    m_position = m_duration = 0;
+    emit changed();
+    return;
+  }
   m_connectTimer.stop();
   m_pendingId.clear();
   if (m_process.state() != QProcess::NotRunning) {
@@ -352,6 +456,10 @@ void Backend::play(int i, bool paused) {
              .arg(mediaPath(i)));
     return;
   }
+  if (!localOutput() && (discovering() || m_receiver.isEmpty())) {
+    fail(tr("Search for and choose a Chromecast receiver first."));
+    return;
+  }
   if (!ready()) {
     m_pendingId = mediaId(i);
     m_pendingPaused = paused;
@@ -364,6 +472,20 @@ void Backend::play(int i, bool paused) {
   m_paused = m_desiredPaused = paused;
   m_position = m_duration = 0;
   invalidatePreview();
+  if (!localOutput()) {
+    m_liveItem = m_queue.items[i];
+    m_remoteState = "loading";
+    m_remoteId = m_liveItem.id + ":" + QString::number(++m_remoteSequence);
+    applyAudio();
+    m_cast.send({{"op", "play"},
+                 {"id", m_remoteId},
+                 {"path", m_liveItem.path},
+                 {"title", QFileInfo(m_liveItem.path).fileName()},
+                 {"start", m_liveItem.start},
+                 {"paused", paused}});
+    emit changed();
+    return;
+  }
   command({"set_property", "pause", paused});
   // Per-load options are applied atomically before the first decoded frame.
   m_liveItem = m_queue.items[i];
@@ -401,6 +523,14 @@ void Backend::standby() {
   m_paused = m_desiredPaused = true;
   m_position = m_duration = 0;
   invalidatePreview();
+  if (!localOutput()) {
+    if (ready())
+      m_cast.send({{"op", "stop"}});
+    m_remoteState.clear();
+    applyAudio();
+    emit changed();
+    return;
+  }
   command({"stop"});
   if (!m_placeholder.isEmpty()) {
     if (QFileInfo::exists(m_placeholder)) {
@@ -423,13 +553,19 @@ void Backend::togglePause() {
     return;
   }
   m_desiredPaused = !m_desiredPaused;
-  command({"set_property", "pause", m_desiredPaused});
+  if (localOutput())
+    command({"set_property", "pause", m_desiredPaused});
+  else
+    m_cast.send({{"op", "pause"}, {"paused", m_desiredPaused}});
 }
 void Backend::pause() {
   if (!m_media)
     return;
   m_desiredPaused = true;
-  command({"set_property", "pause", true});
+  if (localOutput())
+    command({"set_property", "pause", true});
+  else
+    m_cast.send({{"op", "pause"}, {"paused", true}});
 }
 void Backend::next() {
   if (!count())
@@ -449,11 +585,21 @@ void Backend::seek(double s) {
   if (!m_media)
     return;
   const double target = qBound(0., s, m_duration);
-  command({"seek", target, "absolute+exact"});
+  if (localOutput())
+    command({"seek", target, "absolute+exact"});
+  else
+    m_cast.send({{"op", "seek"}, {"position", target}, {"paused", m_desiredPaused}});
   emit seeked(target);
 }
 void Backend::applyAudio() {
   const int override = m_media && m_current >= 0 ? m_liveItem.volume : -1;
+  if (!localOutput()) {
+    if (ready())
+      m_cast.send({{"op", "volume"},
+                   {"volume", override < 0 ? m_volume : override},
+                   {"muted", m_muted}});
+    return;
+  }
   command({"set_property", "volume", override < 0 ? m_volume : override});
   command(
       {"set_property", "mute", m_muted || (m_blackout && !m_blackoutAudio)});
@@ -473,6 +619,8 @@ void Backend::setMuted(bool v) {
   emit changed();
 }
 void Backend::setSpeed(double v) {
+  if (!localOutput())
+    return;
   m_speed = qBound(.25, v, 3.);
   command({"set_property", "speed", m_speed});
   emit changed();
@@ -624,7 +772,7 @@ void Backend::clearPlaceholder() {
   emit changed();
 }
 void Backend::setBlackout(bool v) {
-  if (!projecting() || m_blackout == v)
+  if (!localOutput() || !projecting() || m_blackout == v)
     return;
   m_blackout = v;
   command({"set_property", "sub-visibility", !v});
@@ -694,6 +842,8 @@ void Backend::invalidatePreview() {
   emit previewChanged();
 }
 void Backend::setPreviewEnabled(bool v) {
+  if (v && !localOutput())
+    return;
   if (m_previewEnabled == v)
     return;
   m_previewEnabled = v;
@@ -1051,6 +1201,8 @@ void Backend::portalResponse(uint response, const QVariantMap &results) {
     loadPlaylist(url.toLocalFile(), m_pickerAction == "open-discard");
 }
 void Backend::identifyDisplays() {
+  if (!localOutput())
+    return;
   dismissIdentify();
   const QString inputPath = m_runtime.filePath("identify-input.conf");
   QFile input(inputPath);
@@ -1078,7 +1230,8 @@ void Backend::identifyDisplays() {
     painter.drawText(card.rect().adjusted(40, 40, -40, -40),
                      Qt::AlignCenter | Qt::TextWordWrap,
                      tr("Display %1\n%2\n%3 %4")
-                         .arg(n + 1).arg(connector, manufacturer, model));
+                         .arg(n + 1)
+                         .arg(connector, manufacturer, model));
     painter.end();
     const QString path = m_runtime.filePath(QString("identify-%1.png").arg(n));
     if (!card.save(path)) {
@@ -1092,22 +1245,32 @@ void Backend::identifyDisplays() {
     m_identify << process;
     process->setStandardOutputFile(QProcess::nullDevice());
     process->setStandardErrorFile(QProcess::nullDevice());
-    connect(process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-      dismissIdentify();
-      fail(tr("Cannot start mpv. Install the mpv package and try again."));
-    });
+    connect(
+        process, &QProcess::errorOccurred, this,
+        [this](QProcess::ProcessError) {
+          dismissIdentify();
+          fail(tr("Cannot start mpv. Install the mpv package and try again."));
+        });
     connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus) { dismissIdentify(); });
-    QStringList args{"--no-config", "--terminal=no", "--osc=no", "--osd-level=0",
-                     "--audio=no", "--image-display-duration=inf",
-                     "--input-default-bindings=no", "--input-vo-keyboard=yes",
-                     "--input-conf=" + inputPath, "--cursor-autohide=always",
-                     "--screen-name=" + connector, "--fs-screen-name=" + connector};
+    QStringList args{"--no-config",
+                     "--terminal=no",
+                     "--osc=no",
+                     "--osd-level=0",
+                     "--audio=no",
+                     "--image-display-duration=inf",
+                     "--input-default-bindings=no",
+                     "--input-vo-keyboard=yes",
+                     "--input-conf=" + inputPath,
+                     "--cursor-autohide=always",
+                     "--screen-name=" + connector,
+                     "--fs-screen-name=" + connector};
     if (m_headless)
       args << "--vo=null" << "--ao=null";
     else
       args << "--fullscreen=yes" << "--force-window=immediate"
-           << "--wayland-app-id=beam-identify" << "--title=Beam display identification";
+           << "--wayland-app-id=beam-identify"
+           << "--title=Beam display identification";
     args << "--" << path;
     process->start("mpv", args);
   }
@@ -1130,6 +1293,8 @@ void Backend::dismissIdentify() {
   }
 }
 void Backend::testPattern() {
+  if (!localOutput())
+    return;
   if (m_media) {
     fail(tr("Stop playback before showing a test pattern."));
     return;

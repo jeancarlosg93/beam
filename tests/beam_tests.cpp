@@ -16,6 +16,7 @@
 #include <QQuickWindow>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <QScopeGuard>
 class BeamTests : public QObject {
   Q_OBJECT
   QTemporaryDir dir;
@@ -59,6 +60,98 @@ class BeamTests : public QObject {
     return {};
   }
 private slots:
+  void chromecastPrivateCueAndLifecycle() {
+    const QByteArray original = qgetenv("BEAM_CAST_PYTHON");
+    const auto restore = qScopeGuard([original] {
+      if (original.isNull()) qunsetenv("BEAM_CAST_PYTHON");
+      else qputenv("BEAM_CAST_PYTHON", original);
+    });
+    const QString fixture = QFINDTESTDATA("fake_cast.py");
+    QVERIFY(!fixture.isEmpty());
+    qputenv("BEAM_CAST_PYTHON", fixture.toUtf8());
+    const QString state = dir.filePath("cast-session.json");
+    Backend b(state, true);
+    b.addFiles({QUrl::fromLocalFile(video), QUrl::fromLocalFile(video)});
+    b.setOutputMode("chromecast");
+    b.discoverReceivers();
+    QTRY_VERIFY_WITH_TIMEOUT(!b.discovering(), 3000);
+    QCOMPARE(b.receivers().size(), 1);
+    b.setReceiver("test-receiver");
+    b.cue(0);
+    b.setCueSetting("start", 1.0);
+    b.playCue();
+    QTRY_VERIFY_WITH_TIMEOUT(b.ready() && b.playing(), 3000);
+    QCOMPARE(b.position(), 1.0);
+    QCOMPARE(b.current(), 0);
+    QVERIFY(b.m_process.state() == QProcess::NotRunning);
+    const QString firstLoad = b.m_remoteId;
+    b.setOutputMode("local");
+    QCOMPARE(b.outputMode(), QString("chromecast"));
+    b.setBlackout(true);
+    b.setPreviewEnabled(true);
+    b.identifyDisplays();
+    b.testPattern();
+    QVERIFY(!b.blackout() && !b.previewEnabled() && !b.testing());
+    QVERIFY(b.m_identify.isEmpty());
+    b.cue(1);
+    b.setCueSetting("start", 2.0);
+    QTest::qWait(50);
+    QCOMPARE(b.current(), 0);
+    QCOMPARE(b.position(), 1.0);
+    b.playCue();
+    QTRY_COMPARE(b.current(), 1);
+    QTRY_COMPARE(b.position(), 2.0);
+    // A delayed completion of the previous load cannot advance the new one.
+    emit b.m_cast.status({{"id", firstLoad}, {"state", "finished"}});
+    QVERIFY(b.mediaActive());
+    b.pause();
+    QTRY_VERIFY(!b.playing());
+    b.seek(10);
+    QTRY_COMPARE(b.position(), 10.0);
+    b.updateScreens({}, {});
+    QVERIFY(b.projecting());
+    emit b.m_cast.status({{"id", b.m_remoteId}, {"state", "finished"}});
+    QVERIFY(!b.mediaActive());
+    QVERIFY(b.projecting());
+    b.play(0);
+    QTRY_VERIFY(b.playing());
+    b.m_cast.send({{"op", "drop"}});
+    QTRY_VERIFY(!b.projecting());
+    QVERIFY(!b.mediaActive());
+    QCOMPARE(b.receiver(), QString("test-receiver"));
+    Backend restored(state, true);
+    QCOMPARE(restored.outputMode(), QString("chromecast"));
+    QCOMPARE(restored.receiver(), QString("test-receiver"));
+    QVERIFY(!restored.projecting());
+    b.setOutputMode("local");
+    QCOMPARE(b.outputMode(), QString("local"));
+  }
+  void wirelessQmlControls() {
+    Backend b(dir.filePath("wireless-ui.json"), true);
+    Theme theme(dir.path());
+    Translator translator(dir.filePath("nonexistent"));
+    b.setOutputMode("chromecast");
+    b.addFiles({QUrl::fromLocalFile(video), QUrl::fromLocalFile(video)});
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &b);
+    engine.rootContext()->setContextProperty("theme", &theme);
+    engine.rootContext()->setContextProperty("translator", &translator);
+    engine.load(QUrl("qrc:/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->resize(620, 540);
+    QTest::qWait(100);
+    auto *mode = findItem(window->contentItem(), "outputMode");
+    auto *receiver = findItem(window->contentItem(), "receiver");
+    QVERIFY(mode && receiver && receiver->isVisible());
+    QCOMPARE(mode->property("currentIndex").toInt(), 1);
+    b.setOutputMode("local");
+    QTest::qWait(20);
+    QVERIFY(!receiver->isVisible());
+    QCOMPARE(mode->property("currentIndex").toInt(), 0);
+    window->setProperty("allowClose", true);
+  }
   void initTestCase() {
     QQuickStyle::setStyle("Material");
     video = dir.filePath("Test screening.mp4");

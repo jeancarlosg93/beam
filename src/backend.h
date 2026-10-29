@@ -1,4 +1,5 @@
 #pragma once
+#include "castoutput.h"
 #include "queue.h"
 #include <QJsonArray>
 #include <QLocalSocket>
@@ -11,6 +12,12 @@
 class Backend : public QObject {
   friend class BeamTests;
   Q_OBJECT
+  Q_PROPERTY(
+      QString outputMode READ outputMode WRITE setOutputMode NOTIFY changed)
+  Q_PROPERTY(bool localOutput READ localOutput NOTIFY changed)
+  Q_PROPERTY(QVariantList receivers READ receivers NOTIFY changed)
+  Q_PROPERTY(QString receiver READ receiver WRITE setReceiver NOTIFY changed)
+  Q_PROPERTY(bool discovering READ discovering NOTIFY changed)
   Q_PROPERTY(QVariantList playlist READ playlist NOTIFY playlistChanged)
   Q_PROPERTY(QStringList screens READ screens NOTIFY changed)
   Q_PROPERTY(QStringList screenLabels READ screenLabels NOTIFY changed)
@@ -39,7 +46,8 @@ class Backend : public QObject {
                  changed)
   Q_PROPERTY(bool previewEnabled READ previewEnabled WRITE setPreviewEnabled
                  NOTIFY changed)
-  Q_PROPERTY(QString previewMode READ previewMode WRITE setPreviewMode NOTIFY changed)
+  Q_PROPERTY(
+      QString previewMode READ previewMode WRITE setPreviewMode NOTIFY changed)
   Q_PROPERTY(QString livePreview READ livePreview NOTIFY previewChanged)
   Q_PROPERTY(QString cuePreview READ cuePreview NOTIFY previewChanged)
   Q_PROPERTY(QString previewMessage READ previewMessage NOTIFY previewChanged)
@@ -73,17 +81,29 @@ public:
   QString totalDuration() const { return m_queue.total(); }
   QString playlistName() const;
   bool dirty() const { return m_dirty; }
-  bool projecting() const { return m_process.state() != QProcess::NotRunning; }
+  QString outputMode() const { return m_outputMode; }
+  bool localOutput() const { return m_outputMode == "local"; }
+  QVariantList receivers() const { return m_receivers; }
+  QString receiver() const { return m_receiver; }
+  bool discovering() const { return m_cast.discovering(); }
+  void setOutputMode(const QString &mode);
+  void setReceiver(const QString &id);
+  Q_INVOKABLE void discoverReceivers();
+  bool projecting() const {
+    return localOutput() ? m_process.state() != QProcess::NotRunning
+                         : m_cast.active();
+  }
   bool playing() const { return m_media && !m_paused; }
   bool mediaActive() const { return m_media; }
   bool ready() const {
-    return m_socket.state() == QLocalSocket::ConnectedState;
+    return localOutput() ? m_socket.state() == QLocalSocket::ConnectedState
+                         : m_cast.ready();
   }
   double position() const { return m_position; }
   double duration() const { return m_duration; }
   int volume() const { return m_volume; }
   bool muted() const { return m_muted; }
-  double speed() const { return m_speed; }
+  double speed() const { return localOutput() ? m_speed : 1.; }
   bool continuous() const { return m_continuous; }
   bool repeat() const { return m_repeat; }
   QString placeholder() const { return m_placeholder; }
@@ -167,6 +187,10 @@ private:
   void resetCuePreview();
   void invalidatePreview();
   void openPicker(const QString &action);
+  CastOutput m_cast;
+  QString m_outputMode = "local", m_receiver, m_remoteState, m_remoteId;
+  int m_remoteSequence = 0;
+  QVariantList m_receivers;
   MediaQueue m_queue;
   QueueItem m_liveItem;
   QStringList m_screens, m_screenLabels;

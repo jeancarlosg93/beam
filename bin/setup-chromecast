@@ -1,0 +1,5 @@
+#!/bin/sh
+# Optional dependency isolated from system Python; does not alter network settings.
+set -eu
+python3 -m venv "$HOME/.local/share/beam/cast-env"
+"$HOME/.local/share/beam/cast-env/bin/python" -m pip install 'PyChromecast>=14,<15'

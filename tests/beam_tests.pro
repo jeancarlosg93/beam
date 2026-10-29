@@ -8,3 +8,6 @@ RESOURCES += ../src/resources.qrc
 
 HEADERS += ../src/queue.h
 SOURCES += ../src/queue.cpp
+
+HEADERS += ../src/outputdriver.h ../src/castoutput.h
+SOURCES += ../src/castoutput.cpp

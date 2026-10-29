@@ -88,3 +88,63 @@ Session data is written atomically to `~/.local/share/beam/session.json`. Existi
 For isolated QA, `BEAM_STATE_FILE`, `BEAM_LANGUAGE_FILE` and `BEAM_THEME_DIRECTORY` override source paths. `BEAM_CAPTURE=/absolute/file.png` captures the controller and exits; `BEAM_CAPTURE_COMPACT=1`, `BEAM_CAPTURE_PREVIEW=1` `BEAM_CAPTURE_SETTINGS=1`, and `BEAM_CAPTURE_SHORTCUTS=1` select QA states. Screenshots contain synthetic demonstration media only.
 
 Licensed under MIT. Theme/language infrastructure is adapted from Omarchy app templates (Omacut / Monologue, David Heinemeier Hansson).
+
+## Wireless output: Chromecast (initial integration)
+
+Choose **Wireless · Chromecast** in the output selector, **Search**, select a
+receiver, then **Connect**. The receiver and computer must share a reachable local
+network. **Play cue** sends only that video and its start position; choosing or
+editing the next cue stays private. Play/pause, seek, stop, master mute/volume,
+item volume, Auto next and Repeat use the receiver. Output type and receiver UUID
+are saved, but Beam never reconnects or resumes automatically at startup.
+
+Install the optional Python 3.11+ dependency once from the source checkout:
+
+```sh
+bin/setup-chromecast
+bin/build
+```
+
+The setup script creates `~/.local/share/beam/cast-env` with PyChromecast 14.x;
+ordinary local projection needs no Python package. A system installation of
+PyChromecast 14.x also works. `BEAM_CAST_PYTHON=/absolute/path/to/python` selects
+another interpreter. The helper is embedded in the Beam executable, so user and
+Arch installations do not need a separate helper file.
+
+Discovery uses mDNS (UDP 5353). When a video is explicitly played, Beam opens an
+HTTP server on an on-link LAN interface when available, on TCP port 45000
+(`BEAM_CAST_PORT` selects another port). Local HTTP replies bypass overlapping VPN
+routes without changing system routing. The firewall must permit the receiver to reach that port; guest Wi-Fi/client
+isolation can prevent this. Only the current video is accessible through a random
+URL; no directory or private cue is published. Stop, switching videos and
+Disconnect revoke the URL. Active responses already being read may finish.
+
+Chromecast decodes the original file: there is **no transcoding**. MP4 with H.264
+video and AAC audio is a useful starting point; support depends on the receiver.
+Loading and seeking may take time. Embedded track selection, aspect/crop, speed,
+blackout, standby images, monitor identification and confidence preview are local
+output features and are hidden or ignored in wireless mode. Chromecast selects
+its own tracks and display treatment. Stop/EOF use its idle screen, which Beam
+cannot guarantee is black. Disconnect stops Beam's current media when the receiver
+is reachable. Network loss cannot guarantee the remote picture stops immediately.
+
+Automated coverage uses a simulated receiver and real local HTTP range requests.
+A live receiver test also verified playback, pause, seek while paused, next-cue
+start position, resume, stop and replay through the installed app. Check picture,
+audio and reconnect behavior with the intended receiver before use in a screening.
+
+### Output driver boundary
+
+`src/outputdriver.h` defines the remote-output contract independently of queue
+editing and mpv IPC. `CastOutput` supervises an isolated helper process; its
+newline-delimited JSON commands are `discover`, `connect`, `play`, `pause`, `seek`,
+`volume`, `stop`, and `disconnect`. Events report devices, connection, status and
+errors. Each load has a unique request identity, so late completion events cannot
+advance a newer cue. The helper owns device discovery, local-media serving,
+receiver playback and connection loss; `Backend` owns cue/live identity, playlist
+policy and persistence. The existing local mpv path remains separate.
+
+A future Roku/Fire TV driver can implement `OutputDriver` and report its own
+receiver state without changing private queue behavior. Add an explicit output
+type and capability-specific controls when introducing such a driver; the current
+wireless controls deliberately expose only the initial Chromecast feature set.

@@ -40,21 +40,54 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Label { text: "Beam"; font.pixelSize: theme.fontSize+4; font.weight: Font.DemiBold }
                 Label { text: backend.outputState; color: backend.blackout ? theme.colors.red : theme.colors.light_foreground; Layout.fillWidth: true; leftPadding: 8; font.weight: backend.blackout ? Font.Bold : Font.Normal }
-                BeamButton { text: qsTr("Blackout"); checkable: true; checked: backend.blackout; highlighted: checked; enabled: backend.projecting; onClicked: backend.blackout = !backend.blackout }
-                BeamButton { text: qsTr("Preview"); checkable: true; checked: backend.previewEnabled; onClicked: { backend.previewEnabled = !backend.previewEnabled; if (backend.previewEnabled) win.height = Math.max(win.height,740) } }
+                BeamButton { visible: backend.localOutput; text: qsTr("Blackout"); checkable: true; checked: backend.blackout; highlighted: checked; enabled: backend.projecting; onClicked: backend.blackout = !backend.blackout }
+                BeamButton { visible: backend.localOutput; text: qsTr("Preview"); checkable: true; checked: backend.previewEnabled; onClicked: { backend.previewEnabled = !backend.previewEnabled; if (backend.previewEnabled) win.height = Math.max(win.height,740) } }
                 BeamButton { text: qsTr("Settings"); checkable: true; checked: settings.opened; onClicked: settings.opened ? settings.close() : settings.open() }
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
-                Label { text: qsTr("Output"); font.weight: Font.DemiBold }
                 BeamComboBox {
-                    Layout.fillWidth: true; model: backend.screenLabels
+                    objectName: "outputMode"; implicitWidth: 220
+                    model: [qsTr("Connected display"), qsTr("Wireless · Chromecast")]
+                    currentIndex: backend.localOutput ? 0 : 1
+                    enabled: !backend.projecting && !backend.discovering
+                    Accessible.name: qsTr("Output type")
+                    onActivated: backend.outputMode = currentIndex === 0 ? "local" : "chromecast"
+                }
+                BeamComboBox {
+                    visible: backend.localOutput; Layout.fillWidth: true; model: backend.screenLabels
                     currentIndex: backend.screens.indexOf(backend.screen); enabled: !backend.projecting
                     displayText: currentIndex < 0 ? qsTr("Unavailable: %1").arg(backend.screen) : currentText
                     Accessible.name: qsTr("Output display")
                     onActivated: backend.screen = backend.screens[currentIndex]
                 }
-                BeamButton { text: backend.projecting ? qsTr("End projection") : qsTr("Start projection"); highlighted: !backend.projecting; enabled: backend.screens.indexOf(backend.screen) >= 0; onClicked: backend.projecting ? backend.endProjection() : backend.project() }
+                BeamComboBox {
+                    objectName: "receiver"; visible: !backend.localOutput; Layout.fillWidth: true
+                    model: backend.receivers.map(d => d.label)
+                    currentIndex: backend.receivers.map(d => d.id).indexOf(backend.receiver)
+                    enabled: !backend.projecting && !backend.discovering
+                    displayText: currentIndex < 0 ? qsTr("Choose receiver") : currentText
+                    Accessible.name: qsTr("Chromecast receiver")
+                    onActivated: backend.receiver = backend.receivers[currentIndex].id
+                }
+                BeamButton {
+                    visible: !backend.localOutput; text: backend.discovering ? qsTr("Searching…") : qsTr("Search")
+                    enabled: !backend.projecting && !backend.discovering; onClicked: backend.discoverReceivers()
+                }
+                BeamButton { visible: backend.localOutput; text: backend.projecting ? qsTr("End projection") : qsTr("Start projection"); highlighted: !backend.projecting; enabled: backend.screens.indexOf(backend.screen) >= 0; onClicked: backend.projecting ? backend.endProjection() : backend.project() }
+            }
+            RowLayout {
+                visible: !backend.localOutput; Layout.fillWidth: true
+                Label {
+                    text: qsTr("Same local network required. Preparing a cue stays private; switching videos may take a moment.")
+                    wrapMode: Text.WordWrap; Layout.fillWidth: true; color: theme.colors.light_foreground
+                }
+                BeamButton {
+                    text: backend.projecting ? qsTr("Disconnect") : qsTr("Connect")
+                    highlighted: !backend.projecting
+                    enabled: backend.projecting || (!backend.discovering && backend.receivers.map(d => d.id).indexOf(backend.receiver) >= 0)
+                    onClicked: backend.projecting ? backend.endProjection() : backend.project()
+                }
             }
             Rectangle {
                 visible: backend.error.length > 0; Layout.fillWidth: true; implicitHeight: errorRow.implicitHeight+12
@@ -181,7 +214,7 @@ ApplicationWindow {
                 Label { text: qsTr("Live: %1").arg(win.titleAt(backend.current)); font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
                 Label { text: backend.outputState; color: backend.blackout ? theme.colors.red : theme.colors.light_foreground }
                 BeamComboBox {
-                    model: ["0.5×","0.75×","1×","1.25×","1.5×","2×"]; property var speeds: [.5,.75,1,1.25,1.5,2]
+                    visible: backend.localOutput; model: ["0.5×","0.75×","1×","1.25×","1.5×","2×"]; property var speeds: [.5,.75,1,1.25,1.5,2]
                     currentIndex: speeds.indexOf(backend.speed); implicitWidth: 78; Accessible.name: qsTr("Playback speed"); onActivated: backend.speed = speeds[currentIndex]
                 }
             }
@@ -196,7 +229,7 @@ ApplicationWindow {
                 IconButton { symbol: "previous"; label: qsTr("Previous video"); enabled: backend.playlist.length > 0; onClicked: backend.previous() }
                 IconButton { symbol: backend.playing ? "pause" : "play"; label: backend.playing ? qsTr("Pause") : qsTr("Play"); highlighted: true; enabled: backend.playlist.length > 0; onClicked: backend.togglePause() }
                 IconButton { symbol: "next"; label: qsTr("Next video"); enabled: backend.playlist.length > 0; onClicked: backend.next() }
-                IconButton { symbol: "stop"; label: qsTr("Stop to standby"); enabled: backend.mediaActive || backend.testing; onClicked: backend.stop() }
+                IconButton { symbol: "stop"; label: backend.localOutput ? qsTr("Stop to standby") : qsTr("Stop"); enabled: backend.mediaActive || backend.testing; onClicked: backend.stop() }
                 Item { Layout.fillWidth: true }
                 IconButton { symbol: backend.muted ? "muted" : "volume"; label: backend.muted ? qsTr("Unmute") : qsTr("Mute"); onClicked: backend.muted = !backend.muted }
                 BeamSlider { from: 0; to: 100; value: backend.volume; Layout.preferredWidth: 100; Accessible.name: qsTr("Master volume"); onMoved: backend.volume = Math.round(value) }
@@ -213,42 +246,53 @@ ApplicationWindow {
             ColumnLayout {
                 width: settingsScroll.availableWidth; spacing: 8
                 RowLayout { Layout.fillWidth: true; Label { text: qsTr("Settings"); font.weight: Font.DemiBold; Layout.fillWidth: true } BeamButton { text: qsTr("Close"); onClicked: settings.close() } }
-                Label { text: qsTr("Audio output"); font.weight: Font.DemiBold }
-                BeamComboBox {
-                    Layout.fillWidth: true; model: backend.audioDevices.map(d => d.label)
-                    currentIndex: backend.audioDevices.map(d => d.id).indexOf(backend.audioDevice)
-                    displayText: backend.audioDeviceAvailable ? currentText : qsTr("Unavailable: %1").arg(backend.audioDevice)
-                    Accessible.name: qsTr("Audio output device"); onActivated: backend.audioDevice = backend.audioDevices[currentIndex].id
+                ColumnLayout {
+                    visible: backend.localOutput; Layout.fillWidth: true; spacing: 8
+                    Label { text: qsTr("Audio output"); font.weight: Font.DemiBold }
+                    BeamComboBox {
+                        Layout.fillWidth: true; model: backend.audioDevices.map(d => d.label)
+                        currentIndex: backend.audioDevices.map(d => d.id).indexOf(backend.audioDevice)
+                        displayText: backend.audioDeviceAvailable ? currentText : qsTr("Unavailable: %1").arg(backend.audioDevice)
+                        Accessible.name: qsTr("Audio output device"); onActivated: backend.audioDevice = backend.audioDevices[currentIndex].id
+                    }
+                    RowLayout { BeamButton { text: qsTr("Refresh devices"); onClicked: backend.refreshAudioDevices() } BeamButton { text: qsTr("System default"); onClicked: backend.audioDevice = "auto" } }
+                    BeamCheckBox { text: qsTr("Audio continues during blackout"); checked: backend.blackoutAudio; onToggled: backend.blackoutAudio = checked }
+                    Label { text: qsTr("Display setup"); font.weight: Font.DemiBold }
+                    RowLayout { BeamButton { text: qsTr("Identify displays"); onClicked: backend.identifyDisplays() } BeamButton { text: backend.testing ? qsTr("Return to standby") : qsTr("Test pattern"); enabled: backend.ready && !backend.mediaActive; onClicked: backend.testing ? backend.stop() : backend.testPattern() } }
+                    Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: theme.colors.light_foreground; text: qsTr("Connect the intended display, choose its connector, then Start projection. Display loss closes output; reconnect and restart explicitly.") }
+                    Label { text: qsTr("Standby image"); font.weight: Font.DemiBold }
+                    Label { Layout.fillWidth: true; elide: Text.ElideMiddle; text: backend.placeholder.length ? backend.placeholder : qsTr("Black screen"); color: theme.colors.light_foreground }
+                    RowLayout { BeamButton { text: qsTr("Choose image…"); onClicked: backend.chooseFiles(true) } BeamButton { text: qsTr("Use black"); enabled: backend.placeholder.length > 0; onClicked: backend.clearPlaceholder() } }
                 }
-                RowLayout { BeamButton { text: qsTr("Refresh devices"); onClicked: backend.refreshAudioDevices() } BeamButton { text: qsTr("System default"); onClicked: backend.audioDevice = "auto" } }
-                BeamCheckBox { text: qsTr("Audio continues during blackout"); checked: backend.blackoutAudio; onToggled: backend.blackoutAudio = checked }
-                Label { text: qsTr("Display setup"); font.weight: Font.DemiBold }
-                RowLayout { BeamButton { text: qsTr("Identify displays"); onClicked: backend.identifyDisplays() } BeamButton { text: backend.testing ? qsTr("Return to standby") : qsTr("Test pattern"); enabled: backend.ready && !backend.mediaActive; onClicked: backend.testing ? backend.stop() : backend.testPattern() } }
-                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: theme.colors.light_foreground; text: qsTr("Connect the intended display, choose its connector, then Start projection. Display loss closes output; reconnect and restart explicitly.") }
-                Label { text: qsTr("Standby image"); font.weight: Font.DemiBold }
-                Label { Layout.fillWidth: true; elide: Text.ElideMiddle; text: backend.placeholder.length ? backend.placeholder : qsTr("Black screen"); color: theme.colors.light_foreground }
-                RowLayout { BeamButton { text: qsTr("Choose image…"); onClicked: backend.chooseFiles(true) } BeamButton { text: qsTr("Use black"); enabled: backend.placeholder.length > 0; onClicked: backend.clearPlaceholder() } }
                 Label { text: qsTr("Playlist exchange"); font.weight: Font.DemiBold }
                 RowLayout { BeamButton { text: qsTr("Import M3U…"); onClicked: win.openPlaylist() } BeamButton { text: qsTr("Export M3U…"); onClicked: backend.choosePlaylist("export") } BeamButton { text: qsTr("Shuffle"); onClicked: backend.shuffle() } }
                 Label { text: qsTr("Private cue settings"); font.weight: Font.DemiBold }
                 Label { text: win.titleAt(backend.cueIndex); Layout.fillWidth: true; elide: Text.ElideRight; color: backend.cueItem.missing ? theme.colors.red : theme.colors.light_foreground }
                 Label { text: qsTr("Applied on the next Play cue. Live playback is unchanged."); Layout.fillWidth: true; wrapMode: Text.WordWrap; color: theme.colors.light_foreground }
-                Label { text: qsTr("Audio track") }
-                BeamComboBox {
-                    Layout.fillWidth: true
-                    property var tracks: [{id:"auto",label:qsTr("Automatic audio")},{id:"no",label:qsTr("Audio off")}].concat((backend.cueItem.tracks || []).filter(t => t.type === "audio"))
-                    model: tracks.map(t => t.label); currentIndex: Math.max(0,tracks.map(t => t.id).indexOf(backend.cueItem.audio)); onActivated: backend.setCueSetting("audio",tracks[currentIndex].id)
-                    Accessible.name: qsTr("Cue audio track")
+                ColumnLayout {
+                    visible: backend.localOutput; Layout.fillWidth: true; spacing: 8
+                    Label { text: qsTr("Audio track") }
+                    BeamComboBox {
+                        Layout.fillWidth: true
+                        property var tracks: [{id:"auto",label:qsTr("Automatic audio")},{id:"no",label:qsTr("Audio off")}].concat((backend.cueItem.tracks || []).filter(t => t.type === "audio"))
+                        model: tracks.map(t => t.label); currentIndex: Math.max(0,tracks.map(t => t.id).indexOf(backend.cueItem.audio)); onActivated: backend.setCueSetting("audio",tracks[currentIndex].id)
+                        Accessible.name: qsTr("Cue audio track")
+                    }
+                    Label { text: qsTr("Subtitle track") }
+                    BeamComboBox {
+                        Layout.fillWidth: true
+                        property var tracks: [{id:"no",label:qsTr("Subtitles off")},{id:"auto",label:qsTr("Automatic subtitles")}].concat((backend.cueItem.tracks || []).filter(t => t.type === "subtitle"))
+                        model: tracks.map(t => t.label); currentIndex: Math.max(0,tracks.map(t => t.id).indexOf(backend.cueItem.subtitle)); onActivated: backend.setCueSetting("subtitle",tracks[currentIndex].id)
+                        Accessible.name: qsTr("Cue subtitle track")
+                    }
+                    Label { text: qsTr("Fit / aspect") }
+                    BeamComboBox { Layout.fillWidth: true; model: [qsTr("Preserve original aspect"),qsTr("Fill / crop"),"4:3","16:9"]; property var values: ["preserve","fill","4:3","16:9"]; currentIndex: Math.max(0,values.indexOf(backend.cueItem.aspect)); onActivated: backend.setCueSetting("aspect",values[currentIndex]); Accessible.name: qsTr("Cue aspect") }
                 }
-                Label { text: qsTr("Subtitle track") }
-                BeamComboBox {
-                    Layout.fillWidth: true
-                    property var tracks: [{id:"no",label:qsTr("Subtitles off")},{id:"auto",label:qsTr("Automatic subtitles")}].concat((backend.cueItem.tracks || []).filter(t => t.type === "subtitle"))
-                    model: tracks.map(t => t.label); currentIndex: Math.max(0,tracks.map(t => t.id).indexOf(backend.cueItem.subtitle)); onActivated: backend.setCueSetting("subtitle",tracks[currentIndex].id)
-                    Accessible.name: qsTr("Cue subtitle track")
+                Label {
+                    visible: !backend.localOutput; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                    text: qsTr("Chromecast chooses the video’s audio, subtitles and aspect. Stop uses the receiver’s idle screen.")
+                    color: theme.colors.light_foreground
                 }
-                Label { text: qsTr("Fit / aspect") }
-                BeamComboBox { Layout.fillWidth: true; model: [qsTr("Preserve original aspect"),qsTr("Fill / crop"),"4:3","16:9"]; property var values: ["preserve","fill","4:3","16:9"]; currentIndex: Math.max(0,values.indexOf(backend.cueItem.aspect)); onActivated: backend.setCueSetting("aspect",values[currentIndex]); Accessible.name: qsTr("Cue aspect") }
                 BeamCheckBox { text: qsTr("Inherit master volume"); checked: backend.cueItem.volume === undefined || backend.cueItem.volume < 0; onToggled: backend.setCueSetting("volume",checked ? -1 : backend.volume) }
                 RowLayout {
                     Layout.fillWidth: true
